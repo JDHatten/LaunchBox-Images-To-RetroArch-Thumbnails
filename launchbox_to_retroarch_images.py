@@ -37,7 +37,7 @@ Requirements:
 
 TODO:
     [] Create log file.
-    [] Search only known game extensions.
+    [X] Search only known game extensions.
     [] Modify image size, rotation, etc.
     [] Find a way to match up LaunchBox and RetroArch databases/platforms, for faster searches.
     [] 
@@ -48,9 +48,48 @@ TODO:
 launchbox_root = r''
 retroarch_root = r''
 
+# A list of file extensions used when searching directories for game files.
+# If any of your game file extensions are not included below, add them now.
+game_extensions = [
+    
+    # Standard disc image file extensions used in many different platforms.
+    '.chd','.cue','.iso','.mds','.nrg','.toc',
+    
+    # Standard rom file extensions used in many different platforms.
+    '.bin','.rom',
+    
+    # Common archive file extensions.
+    '.7z','.rar','.zip',
+    
+    # Common playlist file extensions (used for multi-disc games).
+    '.m3u',
+    
+    # Specific game platform file extensions.
+    '.nes',                # Nintendo Entertainment System
+    '.sfc','.smc',         # Super Nintendo
+    '.n64','.v64','.z64',  # Nintendo 64
+    '.gcm',                # Nintendo GameCube
+    '.wad','.wbfs',        # Nintendo Wii
+    '.gb',                 # Nintendo Game Boy
+    '.gbc',                # Nintendo Game Boy Color
+    '.gba',                # Nintendo Game Boy Advance
+    '.nds',                # Nintendo DS
+    '.3ds',                # Nintendo 3DS
+    '.pce',                # PC Engine / TurboGrafx-16
+    '.sms',                # Sega Master System
+    '.32x','.md',          # Sega Genesis
+    '.cdi','.gdi',         # Sega Dreamcast
+    '.gg',                 # Sega Game Gear
+]
+
 # This script will continue to run allowing the dropping of additional files or directories.
 # Set this to False and this script will run once, do it's thing, and close
 loop_script = True
+
+# Create a log file that will record all the details of each new RetroArch thumbnail created.
+# Note: New log file will overwrite old log file. Rename and save log file once open if you want
+# to prevent it being overwritten.
+create_log_file = True ## TODO
 
 # Use different alternating images with multi-disc games if there's more than one image found.
 # Only used if each disc of a game is added to RetroArch (and not a single m3u playlist).
@@ -94,7 +133,7 @@ BILINEAR = 1  #
 BICUBIC = 2   # 
 
 # Extra Parameters
-QUALITY = 0
+QUALITY = 0      ## TODO
 SUBSAMPLING = 1
 OPTIMIZE = 2
 PROGRESSIVE = 3
@@ -117,7 +156,7 @@ DEFAULT_GAMEPLAY_SCREENS = ['Screenshot - Gameplay',
                             'Screenshot - High Scores',
                             'Screenshot - Game Title']
 
-### Select the default preset to use here.
+### Select the default preset to use here. ###
 selected_preset = 1
 
 preset0 = { #              : Defaults                   # If option omitted, the default option value will be used.
@@ -143,7 +182,7 @@ preset1 = {
   SEARCH_SUB_DIRS          : True
 }
 
-### Add any newly created presets to this preset_options List.
+# Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1]#,preset2,preset3,preset4]
 
 
@@ -154,7 +193,6 @@ preset_options = [preset0,preset1]#,preset2,preset3,preset4]
 # Extra log messages and images are saved in this script's root, not in RetroArch.
 debug = False
 
-from common_functions import CreateMissingDirectories, MakeList, ModifyImageSize
 import configparser
 from datetime import datetime
 import json
@@ -189,17 +227,29 @@ LOG_DATA = 137
 IMAGES_FOUND = 0
 CURRENT_GAME_PATH = 1
 SAVED_IMAGE_PATHS = 2
+GAME_PATHS_IN_LB_RA = 3
 
 NOT_SAVED = 0
 #ERROR = 1
 NEW_SAVE = 1
 OVERWRITTEN = 2
 
+# Image Dimensions
 WIDTH = 0
 HEIGHT = 1
 
+# Image Modifier Indexes
+MODIFIER = 0
+NUMBER = 1
+
 # Multi-Disc Regular Expression
 re_disc_info_compiled_pattern = re.compile(re_disc_info_pattern, re.IGNORECASE)
+
+# Regular Expression to get a number
+re_number_pattern = re.compile('\d*\.?\d*', re.IGNORECASE)
+
+# Characters not allowed in file names.
+illegal_characters = list('\\|:"<>/?')
 
 
 ### Change the preset in use, retaining any log data.
@@ -223,6 +273,7 @@ def changePreset(preset, all_the_data = {}):
         all_the_data[LOG_DATA][IMAGES_FOUND] = 0
         all_the_data[LOG_DATA][CURRENT_GAME_PATH] = ''
         all_the_data[LOG_DATA][SAVED_IMAGE_PATHS] = {}
+        all_the_data[LOG_DATA][GAME_PATHS_IN_LB_RA] = []
     else:
         all_the_data[APP_DATA] = app_data
         all_the_data[LOG_DATA] = log_data
@@ -370,7 +421,7 @@ def getPathFromSetting(setting, root = None):
 ###     --> Returns a [Dictionary]
 def findLaunchBoxGameImages(path, all_the_data):
     search_sub_dirs = all_the_data.get(SEARCH_SUB_DIRS, False)
-    paths = MakeList(path)
+    paths = makeList(path)
     
     for path in paths:
         
@@ -391,8 +442,10 @@ def findLaunchBoxGameImages(path, all_the_data):
                     
                     game_path = Path(PurePath().joinpath(root, file))
                     all_the_data[LOG_DATA][CURRENT_GAME_PATH] = game_path
-                    ## TODO: only known game file extensions? Or maybe ignore file extensions?
-                    all_the_data = searchForGameImages(all_the_data)
+                    
+                    # Only known game file extensions
+                    if game_path.suffix in game_extensions:
+                        all_the_data = searchForGameImages(all_the_data)
                 
                 if not search_sub_dirs:
                     break
@@ -458,9 +511,6 @@ def searchForGameImages(all_the_data):
                             else:
                                 all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][game_platform][GAME_PATHS].update({game_title : [game_path]})
                         
-                        ## TODO: Log?
-                        #print(all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][game_platform][GAME_PATHS])
-                        
                         game_found = True
                         break
                 
@@ -488,7 +538,7 @@ def saveImagePaths(all_the_data, game_platform, game_title, media, default_media
     
     # Use alternative images with multi-disc games
     if alternating_gameplay_images:
-        existing_images = MakeList(platform_data[IMAGE_PATHS][game_title].get(media, []))
+        existing_images = makeList(platform_data[IMAGE_PATHS][game_title].get(media, []))
     else:
         existing_images = []
     
@@ -499,8 +549,12 @@ def saveImagePaths(all_the_data, game_platform, game_title, media, default_media
             if media_type == path_data[MEDIA_TYPE]:
                 ## TODO: Image number pref? (01,02,...) also (search) Format/Extension pref?
                 ## TODO: NEW in LaunchBox. "Game Title.<ID>-01"  Have to search with and without ID (from xml) to find images ??
-                #file_name = f'{game_title.replace(":","_")}-01' ## TODO: additional illegal characters?
-                partial_file_name = f'{game_title.replace(":","_")}' ## TODO: additional illegal characters?
+                ## TODO: Region prefs?
+                #file_name = f'{game_title.replace(":","_")}-01'
+                
+                partial_file_name = f'{game_title}'
+                for ic in illegal_characters:
+                    partial_file_name = partial_file_name.replace(ic,"_")
                 
                 image_file_path = searchImageDirectory(path_data[DIR_PATH], partial_file_name, existing_images)
                 
@@ -551,10 +605,9 @@ def createRetroArchImagePaths(all_the_data):
     
     for game_platform, data in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS].items():
         for game_title, media in data[IMAGE_PATHS].items():
-            #print(f'\nBoxart Images: {media[FRONT_BOXART]}')
-            #print(f'Title Screens: {media[TITLE_SCREEN]}')
-            #print(f'Gameplay Screens: {media[GAMEPLAY_SCREEN]}')
-            print('\nUsable Front Boxart Images:')
+            print('\nGame Title:')
+            print(f'  {game_title}')
+            print('Usable Front Boxart Images:')
             boxart_paths = ",\n  ".join([str(path) for path in media[FRONT_BOXART]])
             print(f'  {boxart_paths}')
             print('Usable Title Screen Images:')
@@ -572,7 +625,6 @@ def createRetroArchImagePaths(all_the_data):
                     if Path(file).suffix == '.lpl':
                         
                         retroarch_playlist_path = Path(PurePath().joinpath(root, file))
-                        #print(retroarch_playlist_path)
                         
                         # Only search playlist files if they belong to the same platform.
                         ## TODO: option to search all, in case platform names are too different?
@@ -586,12 +638,18 @@ def createRetroArchImagePaths(all_the_data):
                         ## What if games are added to wrong platforms, ex. Sega 32X put in Sega Genesis
                         
                         ## it takes 10x more time to search though all 20 (8 are quite big) of my playlists
-                        ## its only noticable with a large amount of game files searched/dropped (100+)
-                        launchbox_platform_name = game_platform.casefold()
+                        ## its only noticeable with a large amount of game files searched/dropped (100+)
+                        
+                        ## Create list of platforms that have different spellings between LaunchBox and RetroArch, with all possible related platforms
+                        ## 'Sony PSP' : ['Sony - PlayStation Portable', '']
+                        ## 'Sega Genesis' : ['Sega - Mega Drive - Genesis', 'Sega - 32X', 'Sega - Mega-CD - Sega CD']
+                        ## Sega 32X, Sega CD, Sega CD 32X,
+                        ## if not in above list -> if Nintendo found in string, remove 'Nintendo - ' else just remove '- '
+                        #launchbox_platform_name = game_platform.casefold()
                         retroarch_platform_name = retroarch_playlist_path.stem
-                        retroarch_platform_name_match = retroarch_platform_name.replace('-','').replace('  ',' ').casefold()
-                        if retroarch_platform_name_match.find(launchbox_platform_name) == -1:
-                            continue
+                        #retroarch_platform_name_match = retroarch_platform_name.replace(' - ',' ').casefold()
+                        #if retroarch_platform_name_match.find(launchbox_platform_name) == -1:
+                        #    continue
                         
                         # Open and Read RetroArch Playlist File
                         retroarch_playlist_file = open(retroarch_playlist_path, 'r', encoding="UTF-8") # "cp866")
@@ -602,17 +660,17 @@ def createRetroArchImagePaths(all_the_data):
                             for game_path in game_paths:
                                 
                                 if game['path'] == str(game_path):
-                                    print('Game Title:')
-                                    print(f'  {game["label"]}')
-                                    print('Game Path:')
+                                    #print('Game Title:')
+                                    #print(f'  {game["label"]}')
+                                    print('Game Path (Found In Both LaunchBox and RetroArch):')
                                     print(f'  {game["path"]}')
-                                    print('RetroArch\'s New Thumbnails Paths:')
-                                    
+                                    print('New RetroArch Thumbnail Paths:')
                                     #print(f'Database Name: {game["db_name"]}')
                                     #retroarch_platform_name = Path(game["db_name"]).stem
                                     
                                     if not all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS].get(game_path):
                                         all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS][game_path] = {}
+                                        all_the_data[LOG_DATA][GAME_PATHS_IN_LB_RA].append(game_path)
                                     
                                     # Create new RetroArch image paths
                                     # Note: Image files are saved in this script's root when debuging.
@@ -633,7 +691,6 @@ def createRetroArchImagePaths(all_the_data):
                                             retroarch_front_boxart_path,
                                             game_platform, game_title, FRONT_BOXART
                                         )
-                                    
                                     if media[TITLE_SCREEN]:
                                         retroarch_title_screen_path = Path(PurePath().joinpath(
                                             debug_thumbnails_root if debug else retroarch_thumbnails_root,
@@ -651,7 +708,6 @@ def createRetroArchImagePaths(all_the_data):
                                             retroarch_title_screen_path,
                                             game_platform, game_title, TITLE_SCREEN
                                         )
-                                    
                                     if media[GAMEPLAY_SCREEN]:
                                         retroarch_gameplay_screen_path = Path(PurePath().joinpath(
                                             debug_thumbnails_root if debug else retroarch_thumbnails_root,
@@ -713,6 +769,7 @@ def createRetroArchThumbnailImages(all_the_data, image_source_paths, image_outpu
     if not current_game_image_logs:
         current_game_image_logs = all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][game_platform][game_title] = {
             FRONT_BOXART : {}, TITLE_SCREEN : {}, GAMEPLAY_SCREEN : {}
+            ## TODO: FRONT_BOXART : { CURRENT_GAME_PATH : [image_source_path, image_output_path, file_saved] }
         }
     
     # Get next image from source list
@@ -745,7 +802,10 @@ def createRetroArchThumbnailImages(all_the_data, image_source_paths, image_outpu
         image_source = None
     
     #if image_source:
-        ## TODO: modify image before saving
+        ## TODO:
+        ## modify image before saving
+        ## Log: all_the_data[LOG_DATA][IMAGE_EDITS][game_platform][game_title]
+        ## FRONT_BOXART : { image_output_path : [orginal_size, new_size, errors] }
     
     if image_output_path.exists():
         if overwrite_retroarch_thumbnails:
@@ -758,7 +818,7 @@ def createRetroArchThumbnailImages(all_the_data, image_source_paths, image_outpu
     
     if image_source:
         try:
-            CreateMissingDirectories(image_output_path)
+            createMissingDirectories(image_output_path)
             image_source.save(image_output_path)
             error = None
         except (OSError, ValueError) as err:
@@ -786,10 +846,141 @@ def resizeImage(image, width_change, height_change, keep_aspect_ratio = True, re
     else:                     resample = Image.Resampling.NEAREST
     
     if width_change or height_change:
-        new_width, new_height = ModifyImageSize((image.width, image.height), (width_change, height_change), keep_aspect_ratio)
+        new_width, new_height = modifyImageSize((image.width, image.height), (width_change, height_change), keep_aspect_ratio)
         image = image.resize((new_width, new_height), resample=resample, box=None, reducing_gap=None)
     
     return image
+
+
+### Modify the size/shape of an image.
+###     (org_image_shape) The height and width of the orginal image. ( Width, Height )
+###     (image_size_modifications) How to modify the height and width of the orginal image. [ ( Modifier, Width ), ( Modifier, Height ) ]
+###     (keep_aspect_ratio) True or False
+###     --> Returns a [Tuple] (Height, Width)
+def modifyImageSize(org_image_shape, image_size_modifications, keep_aspect_ratio = True):
+    
+    # Width
+    if type(image_size_modifications[WIDTH]) is tuple:
+        
+        if image_size_modifications[WIDTH][MODIFIER] == NO_CHANGE:
+            new_width = org_image_shape[WIDTH]
+        
+        if image_size_modifications[WIDTH][MODIFIER] == CHANGE_TO:
+            new_width = image_size_modifications[WIDTH][NUMBER]
+        
+        if image_size_modifications[WIDTH][MODIFIER] == MODIFY_BY_PERCENT:
+            if type(image_size_modifications[WIDTH][NUMBER]) == str:
+                percent_number = re_number_pattern.search(image_size_modifications[WIDTH][NUMBER])
+                if percent_number:
+                    multipler = float(percent_number).group().strip() / 100
+                    new_width = org_image_shape[WIDTH] * multipler
+                else:
+                    print(f'Error: Can\'t decipher what kind of number this is: {image_size_modifications[WIDTH]}')
+                    new_width = org_image_shape[WIDTH]
+            else:
+                multipler = image_size_modifications[WIDTH][NUMBER] / 100
+                new_width = org_image_shape[WIDTH] * multipler
+        
+        if image_size_modifications[WIDTH][MODIFIER] == MODIFY_BY_PIXELS:
+            new_width = org_image_shape[WIDTH] + image_size_modifications[WIDTH][NUMBER]
+        
+        if image_size_modifications[WIDTH][MODIFIER] == UPSCALE:
+            if org_image_shape[WIDTH] < image_size_modifications[WIDTH][NUMBER]:
+                new_height = image_size_modifications[WIDTH][NUMBER]
+            else:
+                new_height = org_image_shape[WIDTH]
+        
+        if image_size_modifications[WIDTH][MODIFIER] == DOWNSCALE:
+            if org_image_shape[WIDTH] > image_size_modifications[WIDTH][NUMBER]:
+                new_height = image_size_modifications[WIDTH][NUMBER]
+            else:
+                new_height = org_image_shape[WIDTH]
+    
+    elif image_size_modifications[WIDTH] != NO_CHANGE:
+        new_width = image_size_modifications[WIDTH]
+    
+    else:
+        new_width = org_image_shape[WIDTH]
+    
+    # Height
+    if type(image_size_modifications[HEIGHT]) is tuple:
+        
+        if image_size_modifications[HEIGHT][MODIFIER] == NO_CHANGE:
+            new_height = org_image_shape[HEIGHT]
+        
+        if image_size_modifications[HEIGHT][MODIFIER] == CHANGE_TO:
+            new_height = image_size_modifications[HEIGHT][NUMBER]
+        
+        if image_size_modifications[HEIGHT][MODIFIER] == MODIFY_BY_PERCENT:
+            if type(image_size_modifications[HEIGHT][NUMBER]) == str:
+                percent_number = re_number_pattern.search(image_size_modifications[HEIGHT][NUMBER])
+                if percent_number:
+                    multipler = float(percent_number.group().strip()) / 100
+                    new_height = org_image_shape[HEIGHT] * multipler
+                else:
+                    print(f'Error: Can\'t decipher what kind of number this is: {image_size_modifications[HEIGHT]}')
+                    new_height = org_image_shape[HEIGHT]
+            else:
+                multipler = image_size_modifications[HEIGHT][NUMBER] / 100
+                new_height = org_image_shape[HEIGHT] * multipler
+        
+        if image_size_modifications[HEIGHT][MODIFIER] == MODIFY_BY_PIXELS:
+            new_height = org_image_shape[HEIGHT] + image_size_modifications[HEIGHT][NUMBER]
+        
+        if image_size_modifications[HEIGHT][MODIFIER] == UPSCALE:
+            if org_image_shape[HEIGHT] < image_size_modifications[HEIGHT][NUMBER]:
+                new_height = image_size_modifications[HEIGHT][NUMBER]
+            else:
+                new_height = org_image_shape[HEIGHT]
+        
+        if image_size_modifications[HEIGHT][MODIFIER] == DOWNSCALE:
+            if org_image_shape[HEIGHT] > image_size_modifications[HEIGHT][NUMBER]:
+                new_height = image_size_modifications[HEIGHT][NUMBER]
+            else:
+                new_height = org_image_shape[HEIGHT]
+    
+    elif image_size_modifications[HEIGHT] != NO_CHANGE:
+        new_height = image_size_modifications[HEIGHT]
+    
+    else:
+        new_height = org_image_shape[HEIGHT]
+    
+    # Aspect Ratio
+    if keep_aspect_ratio and image_size_modifications[WIDTH] == NO_CHANGE and image_size_modifications[HEIGHT] != NO_CHANGE :
+        factor_w = org_image_shape[WIDTH] / org_image_shape[HEIGHT]
+        new_width = org_image_shape[WIDTH] - (org_image_shape[HEIGHT] - new_height) * factor_w
+    
+    elif keep_aspect_ratio and image_size_modifications[HEIGHT] == NO_CHANGE and image_size_modifications[WIDTH] != NO_CHANGE:
+        factor_h = org_image_shape[HEIGHT] / org_image_shape[WIDTH]
+        new_height = org_image_shape[HEIGHT] - (org_image_shape[WIDTH] - new_width) * factor_h
+    
+    new_width = round(new_width)
+    new_height = round(new_height)
+    #print(f'Width: [{new_width}]  X  Height: [{new_height}]')
+    
+    return new_width, new_height
+
+
+### Create any missing directories in a path if they don't already exists.
+###     (path) A full absolute path.
+###     --> Returns a [Boolean]
+def createMissingDirectories(path):
+    path = Path(path)
+    if path.is_absolute():
+        for i in reversed(range(0, len(path.parents))):
+            path.parents[i].mkdir(mode=0o777, parents=False, exist_ok=True)
+    return Path(path).exists()
+
+
+### Make any variable a list if not already a list tuple for looping purposes.
+###     (variable) A variable of any kind.
+###     --> Returns a [List] or [Tuple]
+def makeList(variable):
+    if variable == None:
+        variable = []
+    elif type(variable) != list and type(variable) != tuple:
+        variable = [variable]
+    return variable
 
 
 ### Create log file for all LaunchBox images found and RetroArch thumbnails created.
@@ -828,6 +1019,7 @@ if __name__ == '__main__':
         paths = [ROOT_DIR]
     
     print('---------------------------------')
+    if debug: print('[Debug Mode On]')
     all_the_data = changePreset(preset_options[selected_preset])
     all_the_data = getLaunchBoxRetroArchData(all_the_data)
     print('---------------------------------')
@@ -842,9 +1034,6 @@ if __name__ == '__main__':
         for path in paths:
             all_the_data = findLaunchBoxGameImages(path, all_the_data)
         
-        ## TODO
-        #games_found_in_lb_ra, launchbox_images_found, image_files_saved, image_edit_errors, image_save_errors = getLogNumbers(all_the_data)
-        
         print('\n---------------------------------')
         launchbox_images_found = all_the_data[LOG_DATA][IMAGES_FOUND]
         print(f'LaunchBox Images Found: {launchbox_images_found}')
@@ -854,9 +1043,21 @@ if __name__ == '__main__':
             all_the_data = createRetroArchImagePaths(all_the_data)
             #all_the_data = createRetroArchThumbnailImages(all_the_data)
         
-        #print(f'\nAmount of Games Found in Both LaunchBox and RetroArch: {games_found_in_lb_ra}')
-        print(f'\nTotal Usable LaunchBox Images Found: {launchbox_images_found}')
-        #print(f'Amount of RetroArch Images Saved: {image_files_saved}')
+        ## TODO
+        #games_found_in_lb_ra, launchbox_images_found, image_files_saved, image_edit_errors, image_save_errors = getLogNumbers(all_the_data)
+        
+        games_found_in_lb_ra = len(all_the_data[LOG_DATA][GAME_PATHS_IN_LB_RA])
+        image_files_saved = 0
+        for platform, games in all_the_data[LOG_DATA][SAVED_IMAGE_PATHS].items():
+            for game_title, media_types in games.items():
+                for media, path_data in media_types.items():
+                    for path, save_results in path_data.items():
+                        if type(save_results) == int and save_results > 0:
+                            image_files_saved += 1
+        
+        print(f'\nAmount of Game Files Found in Both LaunchBox and RetroArch: {games_found_in_lb_ra}')
+        print(f'Total Usable LaunchBox Images Found: {launchbox_images_found}')
+        print(f'Amount of RetroArch Images Saved: {image_files_saved}')
         #print(f'Images Not Saved Due To Errors: {image_save_errors}')
         #print(f'Images That Failed Editing*: {image_edit_errors}')
         #print('*If an error happens while editing an image, it still keeps it\'s previous edits and can still be saved.')
@@ -876,10 +1077,13 @@ if __name__ == '__main__':
             else:
                 print(f'This is not an existing file or directory path: "{drop}"')
     
-    log_file_created = createLogFile(all_the_data)
-    if log_file_created:
-        print('--> Check log for more details.')
-        openLogFile(log_file_created)
+    if create_log_file:
+        log_file_created = createLogFile(all_the_data)
+        if log_file_created:
+            print('--> Check log for more details.')
+            openLogFile(log_file_created)
+        else:
+            print('No log file necessary.')
     else:
-        print('No log file necessary.')
+        print('Log file creation turned off.')
 
