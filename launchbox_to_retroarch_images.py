@@ -36,7 +36,7 @@ Requirements:
 
 
 TODO:
-    [] Create log file.
+    [X] Create log file.
     [X] Search only known game extensions.
     [X] Modify image sizes, and maybe other modifications?
         [] Image combining?
@@ -88,7 +88,7 @@ loop_script = True
 # Create a log file that will record all the details of each new RetroArch thumbnail created.
 # Note: New log file will overwrite old log file. Rename and save log file once open if you
 # want to prevent it being overwritten.
-create_log_file = True ## TODO
+create_log_file = True
 
 # Match LaunchBox and RetroArch platforms before searching through playlists, for faster
 # searches. Set to False if your games (that are in both LaunchBox and RetroArch) are not
@@ -277,6 +277,7 @@ except ModuleNotFoundError:
     pillow_installed = False
 from os import getenv, startfile as OpenFile, walk as Search
 import re
+from shutil import copy2 as CopyFile
 import sys
 import xml.etree.ElementTree as XMLParser
 
@@ -358,6 +359,7 @@ def changePreset(preset, all_the_data = {}):
     if not pillow_installed and (preset.get(MODIFY_IMAGE_WIDTH) or preset.get(MODIFY_IMAGE_HEIGHT)):
         print('\nYou\'re attempting to modify images without first installing "Pillow".')
         print('Pillow is a Python imaging library that must be installed in order to modify images.')
+        print('This includes changing image formats to PNG which is required to work in RetroArch.')
         print('Check the "Requirements" section of this script for more information.')
         input('Press "Enter" to continue script without image modification features.')
         print()
@@ -888,10 +890,6 @@ def createRetroArchThumbnailImages(all_the_data, image_source_paths, image_outpu
     current_game_image_paths_log = all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][platform].get(game_title)
     if not current_game_image_paths_log:
         all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][platform][game_title] = { game_path : {} }
-        #current_game_image_paths_log = all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][platform][game_title] = {
-            #FRONT_BOXART : {}, TITLE_SCREEN : {}, GAMEPLAY_SCREEN : {}
-            #game_path : { FRONT_BOXART : [], TITLE_SCREEN : [], GAMEPLAY_SCREEN : [] }
-        #}
     elif not all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][platform][game_title].get(game_path):
         all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][platform][game_title][game_path] = {}
     current_game_image_paths_log = all_the_data[LOG_DATA][SAVED_IMAGE_PATHS][platform][game_title]
@@ -919,15 +917,15 @@ def createRetroArchThumbnailImages(all_the_data, image_source_paths, image_outpu
     
     image_source_path = image_source_paths[next_alt_image]
     
-    if image_output_path.exists() and overwrite_retroarch_thumbnails:
+    if pillow_installed and image_output_path.exists() and overwrite_retroarch_thumbnails:
         image_source = Image.open(image_source_path)
-    elif not image_output_path.exists():
+    elif pillow_installed and not image_output_path.exists():
         image_source = Image.open(image_source_path)
     else:
         image_source = None
     
     # Image Modification
-    if image_source and (width_change or height_change):
+    if pillow_installed and image_source and (width_change or height_change):
         if not all_the_data[LOG_DATA][IMAGE_EDITS][platform].get(game_title):
             all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title] = {}
         if not all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title].get(game_path):
@@ -982,6 +980,16 @@ def createRetroArchThumbnailImages(all_the_data, image_source_paths, image_outpu
             error = f'Failed To Save Image: {err}'
             print(error)
             file_saved = error
+    
+    # Alt: Copy and paste image file if Pillow not installed.
+    elif not pillow_installed and file_saved != NOT_SAVED:
+        if image_source_path.suffix == '.png':
+            createMissingDirectories(image_output_path)
+            CopyFile(image_source_path, image_output_path)
+        else:
+            print('  -WARNING: Without "Pillow" installed non-PNG images will not work in RetroArch.')
+            print(f'  -Skipping image file: {image_source_path}')
+            ## TODO: Only PNG when gathering LaunchBox images if no Pillow
     
     current_game_image_paths_log[game_path][media] = [
         image_source_path, image_output_path, file_saved
@@ -1147,12 +1155,14 @@ def makeList(variable):
 def createLogFile(all_the_data, log_file_path = None):
     log_file_created = False
     log_data = all_the_data.get(LOG_DATA)
-    save_msg = { NOT_SAVED : 'Image File Not Saved (A File With The Same Name Already Exists)',
-                 NEW_SAVE : 'New Image File Created',
+    save_msg = { NOT_SAVED   : 'Image File Not Saved (A File With The Same Name Already Exists)',
+                 NEW_SAVE    : 'New Image File Created',
                  OVERWRITTEN : 'Image File Overwritten' }
+    base_arrow = '----> '
     
     if log_data:
-        completion_time_str, launchbox_images_found, games_found_in_lb_ra, image_edit_errors, image_files_saved, image_save_errors = getLogNumbers(all_the_data)
+        (formated_completion_time, launchbox_images_found, games_found_in_lb_ra,
+         image_edit_errors, image_files_saved, image_save_errors) = getLogNumbers(all_the_data)
     else:
         print('\nNo log data found.')
         return False
@@ -1172,7 +1182,7 @@ def createLogFile(all_the_data, log_file_path = None):
         text_lines.append(f'- Images That Failed Editing*: [ {image_edit_errors} ]')
         text_lines.append('*If an error happens while editing an image, it still keeps it\'s previous edits and can still be saved.')
     
-    text_lines.append(f'\n- Time To Completion: [ {completion_time_str} ]')
+    text_lines.append(f'\n- Time To Completion: [ {formated_completion_time} ]')
     
     print_text_lines = text_lines.copy()
     print('\n'+'\n'.join(print_text_lines))
@@ -1182,8 +1192,53 @@ def createLogFile(all_the_data, log_file_path = None):
         return False
     
     if create_log_file:
-        print('TODO: Log File')
-        ## TODO
+        
+        if not log_file_path:
+            log_file_name = f'{Path(__file__).stem}__log.txt'
+            log_file_path = Path(PurePath().joinpath(ROOT_DIR, log_file_name))
+        
+        desc = all_the_data.get(DESCRIPTION)
+        if desc and desc != '':
+            text_lines.append('\nPreset Used Description:')
+            text_lines.append(f'  {desc}')
+        
+        for platform, game_titles in log_data[SAVED_IMAGE_PATHS].items():
+            for game_title, game_paths in game_titles.items():
+                text_lines.append(f'\nGame Title: 	   {game_title}')
+                
+                for game_path, media_types in game_paths.items():
+                    text_lines.append(f'  Game File:  	   {game_path}')
+                    
+                    for media, image_save_data in media_types.items():
+                        image_source = image_save_data[IMAGE_SOURCE]
+                        image_output = image_save_data[IMAGE_OUTPUT]
+                        save_info = image_save_data[SAVE_INFO]
+                        
+                        text_lines.append(f'  From LaunchBox:  {image_source}')
+                        if type(save_info) != int:
+                            text_lines.append(f'    To RetroArch:  ERROR - {save_info}')
+                        else:
+                            text_lines.append(f'    To RetroArch:  {image_output}')
+                            
+                            image_edit_error = all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][image_output].get(ERROR)
+                            image_size_edits = all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][image_output].get(MODIFY_IMAGE_SIZE)
+                            if image_edit_error:
+                                text_lines.append(f'           {base_arrow}    {image_edit_error}')
+                            elif image_size_edits and len(image_size_edits) > NEW_IMAGE_SIZE:
+                                org_w = image_size_edits[ORIGINAL_IMAGE_SIZE][WIDTH]
+                                org_h = image_size_edits[ORIGINAL_IMAGE_SIZE][HEIGHT]
+                                new_w = image_size_edits[NEW_IMAGE_SIZE][WIDTH]
+                                new_h = image_size_edits[NEW_IMAGE_SIZE][HEIGHT]
+                                text_lines.append(f'           {base_arrow}    Image Size Changed From: [ {org_w} x {org_h} -To- {new_w} x {new_h} ]')
+                            #text_lines.append(f'           {base_arrow}    Image Rotated: [ {} ]')
+                            text_lines.append(f'           {base_arrow}    Save Details: [ {save_msg[save_info]} ]')
+        
+        try: # Write Log File
+            log_file_path.write_text('\n'.join(text_lines), encoding='utf-8', errors='strict')
+            log_file_created = log_file_path # return log file path
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f'\nCouldn\'t save log file due to a {type(error).__name__}: {type(error).__doc__}')
+            print(f'{error}\n')
     
     else:
         print('Log file creation turned off.')
@@ -1203,24 +1258,31 @@ def getLogNumbers(all_the_data):
     image_files_saved = 0
     image_save_errors = 0
     
-    ## TODO Formating
-    #if completion_time >= 60:
-    #print(completion_time)
-    completion_time_str = datetime.fromtimestamp(completion_time).strftime('%S.%f')
+    # Time Formating
+    completion_time = round(completion_time, 1)
+    if completion_time >= 3600:
+        time_format = '%H:%M:%S.%f'
+    elif completion_time >= 60:
+        time_format = '%M:%S.%f'
+    else:
+        time_format = '%S.%f'
+    if debug: print(completion_time)
+    formated_completion_time = datetime.fromtimestamp(completion_time).strftime(time_format)[:-5].rstrip('.0')
     
     for platform, games in all_the_data[LOG_DATA][SAVED_IMAGE_PATHS].items():
         for game_title, game_paths in games.items():
             for game_path, media_types in game_paths.items():
                 for media, save_data in media_types.items():
                     
-                    if all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][save_data[IMAGE_OUTPUT]].get(ERROR):
-                        image_edit_errors += 1
+                    if (pillow_installed and
+                        all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][save_data[IMAGE_OUTPUT]].get(ERROR)):
+                            image_edit_errors += 1
                     if type(save_data[SAVE_INFO]) == int and save_data[SAVE_INFO] > NOT_SAVED:
                         image_files_saved += 1
                     elif type(save_data) != int:
                         image_save_errors += 1
     
-    return completion_time_str, launchbox_images_found, games_found_in_lb_ra, image_edit_errors, image_files_saved, image_save_errors
+    return formated_completion_time, launchbox_images_found, games_found_in_lb_ra, image_edit_errors, image_files_saved, image_save_errors
 
 
 ### Open a log file for viewing.
@@ -1273,7 +1335,8 @@ if __name__ == '__main__':
             all_the_data = createRetroArchImagePaths(all_the_data)
             #all_the_data = createRetroArchThumbnailImages(all_the_data)
         
-        completion_time_str, launchbox_images_found, games_found_in_lb_ra, image_edit_errors, image_files_saved, image_save_errors = getLogNumbers(all_the_data)
+        (formated_completion_time, launchbox_images_found, games_found_in_lb_ra,
+         image_edit_errors, image_files_saved, image_save_errors) = getLogNumbers(all_the_data)
         
         print(f'\nAmount of Game Files Found in Both LaunchBox and RetroArch: {games_found_in_lb_ra}')
         print(f'Total Usable LaunchBox Images Found: {launchbox_images_found}')
@@ -1281,7 +1344,7 @@ if __name__ == '__main__':
         print(f'Images Not Saved Due To Errors: {image_save_errors}')
         print(f'Images That Failed Editing*: {image_edit_errors}')
         print('*If an error happens while editing an image, it still keeps it\'s previous edits and can still be saved.')
-        print(f'\nTime To Completion: {completion_time_str}')
+        print(f'\nTime To Completion: {formated_completion_time}')
         
         try_again = loop_script
         loop = loop_script
