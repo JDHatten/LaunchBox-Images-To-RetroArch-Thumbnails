@@ -42,8 +42,9 @@ TODO:
         [] Image combining?
         [] Rotation?
     [X] Find a way to match up LaunchBox and RetroArch databases/platforms, for faster searches.
-    [] Priorities for Region (NA,Japan,etc), Format (.jpg,.png,etc), and Number (01,02,etc).
-        [] Random number option?
+    [X] Priorities for Region (NA,Japan,etc), Format (.jpg,.png,etc), and Number (01,02,etc).
+        [X] Random number option
+        [] Auto-detect region?
     [] 
 
 '''
@@ -134,7 +135,7 @@ FRONT_BOXART_PRIORITY = 1
 TITLE_SCREEN_PRIORITY = 2
 GAMEPLAY_SCREEN_PRIORITY = 3
 REGION_PRIORITY = 4
-FORMAT_PRIORITY = 5
+FORMAT_PREFERENCE = 5
 STARTING_IMAGE_NUMBER = 6
 ALTERNATE_BOXART_IMAGES = 7
 ALTERNATE_TITLE_IMAGES = 8
@@ -145,6 +146,8 @@ IMAGE_RESAMPLING_FILTER = 12
 KEEP_ASPECT_RATIO = 13
 SEARCH_SUB_DIRS = 20
 OVERWRITE_IMAGES = 21
+
+RANDOM = 789
 
 # Image Modifiers
 NO_CHANGE = 0          # Keep size as is.
@@ -158,6 +161,10 @@ DOWNSCALE = 5          # Only decrease to specific size (keep as is if current s
 NEAREST = 0   # [Default]
 BILINEAR = 1  # 
 BICUBIC = 2   # 
+
+# Image Formats
+JPEG = JPG = ('JPEG', '.jpg', '.jpeg', '.jpe')
+PNG = ('Portable Network Graphics', '.png')
 
 ## TODO: Extra Image Saving Parameters (PNG Only)
 OPTIMIZE = 3      # Possible optimization values are True or False.
@@ -182,25 +189,35 @@ DEFAULT_GAMEPLAY_SCREENS = ['Screenshot - Gameplay',
                             'Screenshot - Game Title']
 SKIP = 0 # Skip searching for images in given category and don't use above defaults.
 
-# Default region priority when selecting images.
+# Default LaunchBox region priorities when selecting thumbnails for RetroArch.
+# Note: Don't modify these defaults, use the existing presets or make your own presets instead.
 DEFAULT_REGIONS = ['Region Free', # Default Root Directory
                    'North America',
                    'United States',
                    'United States, Europe',
+                   'United States, Europe, Brazil',
+                   'United States, Australia',
                    'United States, Japan',
+                   'United States, Japan, Europe',
+                   'United States, Korea',
+                   'United States, Brazil',
                    'World',
                    'Europe',
+                   'Europe, Japan',
                    'Australia',
                    'Canada',
                    'Japan',
+                   'Japan, Korea',
                    'Asia',
                    'Oceania',
                    'South America',
                    'Brazil',
+                   'China',
                    'Finland',
                    'France',
                    'Germany',
                    'Greece',
+                   'Holland',
                    'Hong Kong',
                    'Italy',
                    'Korea',
@@ -208,29 +225,31 @@ DEFAULT_REGIONS = ['Region Free', # Default Root Directory
                    'Russia',
                    'Spain',
                    'Sweden',
+                   'Taiwan',
                    'The Netherlands']
 
 ### Select the default preset to use here. ###
-selected_preset = 3
+selected_preset = 5
 
 preset0 = { #               : Defaults                  # If option omitted, the default option value will be used.
   DESCRIPTION               : '',                       # Description of this preset.
   FRONT_BOXART_PRIORITY     : DEFAULT_FRONT_BOXARTS,    # A list of LaunchBox image categories (in order of priority) to copy when selecting
   TITLE_SCREEN_PRIORITY     : DEFAULT_TITLE_SCREENS,    #   a front boxart, title screen, and gameplay screen thumbnail for RetroArch.
   GAMEPLAY_SCREEN_PRIORITY  : DEFAULT_GAMEPLAY_SCREENS, #   Use SKIP to ignore and not copy any images including defaults.
-  REGION_PRIORITY           : DEFAULT_REGIONS,          ## TODO: 
-  FORMAT_PRIORITY           : None,                     ## TODO: 
+  REGION_PRIORITY           : DEFAULT_REGIONS,          # A list of LaunchBox regions (in order of priority) to select RetroArch thumbnails from.
+  FORMAT_PREFERENCE         : None,                     # LaunchBox image format selection preference, '.png' or '.jpg'. Launchbox only allows JPEG or PNG image files.
+                                                        #   And RetroArch only allows PNG image files so JPEG images will be converted to PNG.
   STARTING_IMAGE_NUMBER     : 1,                        ## TODO: 
-  ALTERNATE_BOXART_IMAGES   : False,                    # Use different alternating images with multi-disc games if there's more than one image found.
-  ALTERNATE_TITLE_IMAGES    : False,                    #   Only used if each disc of a game is added to RetroArch (and not a single m3u playlist).
-  ALTERNATE_GAMEPLAY_IMAGES : True,                     #   If set to False the same image will be used for each game disc.
+  ALTERNATE_BOXART_IMAGES   : False,                    # Use different alternating images with games that have additional discs, regions, versions, hacks, etc.
+  ALTERNATE_TITLE_IMAGES    : False,                    #   Only used if there is more than one image found. Options: True, False, RANDOM
+  ALTERNATE_GAMEPLAY_IMAGES : True,                     #   If set to False the same image will be used for each game file.
   MODIFY_IMAGE_WIDTH        : NO_CHANGE,                # Modify copied LaunchBox images before saving them as RetroArch thumbnails. Example: ('Image Modifier', Number)
   MODIFY_IMAGE_HEIGHT       : NO_CHANGE,                #   Image Modifiers: CHANGE_TO, MODIFY_BY_PIXELS, MODIFY_BY_PERCENT, UPSCALE, DOWNSCALE
   IMAGE_RESAMPLING_FILTER   : NEAREST,                  # Resampling changes the total number of pixels in an image. Filters: NEAREST, BILINEAR, BICUBIC
   KEEP_ASPECT_RATIO         : True,                     # Keep aspect ratio only if one size, width or height, has changed.
   SEARCH_SUB_DIRS           : False,                    # After searching for games in a directory also search sub-directories.
   OVERWRITE_IMAGES          : False,                    # Overwrite RetroArch thumbnail images, else skip the images that already exist.
-}                                                       # 
+}                                                       # Overall Priority: Image Category > Region > Format > Number
 
 preset1 = {
   DESCRIPTION               : ('Front and back boxart with a gameplay image. '+
@@ -281,9 +300,39 @@ preset3 = {
   SEARCH_SUB_DIRS           : True,
   OVERWRITE_IMAGES          : True
 }
+preset4 = {
+  DESCRIPTION               : ('Front and back boxart with a gameplay image. '+
+                               'From Japan or Asia Regions Only. '+
+                               'And downscale image heights to 1080.'),
+  TITLE_SCREEN_PRIORITY     : ['Box - Back',
+                               'Box - Back - Reconstructed',
+                               'Fanart - Box - Back',
+                               'Screenshot - Game Title'],
+  REGION_PRIORITY           : ['Japan','Japan, Korea','Asia','Oceania','Korea',
+                               'Hong Kong','Taiwan','World','United States, Japan'],
+  MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 1080),
+  IMAGE_RESAMPLING_FILTER   : BICUBIC,
+  KEEP_ASPECT_RATIO         : True,
+  SEARCH_SUB_DIRS           : True,
+  OVERWRITE_IMAGES          : True
+}
+preset5 = {
+  DESCRIPTION               : ('Front and back boxart with a random gameplay image. '+
+                               'And downscale image heights to 720.'),
+  TITLE_SCREEN_PRIORITY     : ['Box - Back'],
+  #ALTERNATE_BOXART_IMAGES   : RANDOM,
+  #ALTERNATE_TITLE_IMAGES    : RANDOM,
+  ALTERNATE_GAMEPLAY_IMAGES : RANDOM,
+  #FORMAT_PREFERENCE         : PNG,
+  MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
+  IMAGE_RESAMPLING_FILTER   : BICUBIC,
+  KEEP_ASPECT_RATIO         : True,
+  SEARCH_SUB_DIRS           : True,
+  OVERWRITE_IMAGES          : True
+}
 
 # Add any newly created presets to this preset_options List.
-preset_options = [preset0,preset1,preset2,preset3]#,preset4]
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5]
 
 
 
@@ -303,6 +352,7 @@ try:
 except ModuleNotFoundError:
     pillow_installed = False
 from os import getenv, startfile as OpenFile, walk as Search
+from random import choice as RandomOption
 import re
 from shutil import copy2 as CopyFile
 import sys
@@ -699,33 +749,37 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media = {}
     media_type_list = all_the_data.get(media, default_media) # Missing, use defaults
     media_type_list = media_type_list if media_type_list else default_media # None, use defaults
     
+    if media == FRONT_BOXART:
+        use_random_image = True if all_the_data.get(ALTERNATE_BOXART_IMAGES) == RANDOM else False
+    elif media == TITLE_SCREEN:
+        use_random_image = True if all_the_data.get(ALTERNATE_TITLE_IMAGES) == RANDOM else False
+    elif media == GAMEPLAY_SCREEN:
+        use_random_image = True if all_the_data.get(ALTERNATE_GAMEPLAY_IMAGES) == RANDOM else False
+    else:
+        use_random_image = False
+    
     if not platform_data[IMAGE_PATHS].get(game_title):
         platform_data[IMAGE_PATHS][game_title] = {}
     
-    # Get alternate images to use with multi-disc games
+    # Get alternate images to use with games that have additional discs, regions, versions, hacks, etc.
     existing_images = makeList(platform_data[IMAGE_PATHS][game_title].get(media, []))
     
     for media_type in media_type_list:
         for path_data in platform_data[ALL_MEDIA_TYPES]:
-            #print(path_data[MEDIA_TYPE])
             
             if media_type == path_data[MEDIA_TYPE]:
-                ## TODO: Image number pref? (01,02,...) also (search) Format/Extension pref? PNG or JPG
-                ## TODO: NEW in LaunchBox. "Game Title.<ID>-01"  Have to search with and without ID (from xml) to find images ??
-                ## TODO: Region prefs?
-                #file_name = f'{game_title.replace(":","_")}-01'
                 
-                image_file_path = searchImageDirectory(path_data[DIR_PATH], game_title, existing_images)
+                image_file_path = searchImageDirectory(path_data[DIR_PATH], game_title, existing_images, use_random_image)
                 
                 if image_file_path:
                     print(f'Found: {image_file_path}')
                     all_the_data[LOG_DATA][IMAGES_FOUND] += 1
                     
-                    if existing_images:
-                        existing_images.append(image_file_path)
-                    
+                    # Update images including possible alternates
+                    existing_images.append(image_file_path)
                     platform_data[IMAGE_PATHS][game_title].update(
-                        { media : existing_images if existing_images else [image_file_path] }
+                        #{ media : existing_images if existing_images else [image_file_path] }
+                        { media : existing_images }
                     )
                     
                     return all_the_data
@@ -737,9 +791,18 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media = {}
 ###     (directory) A full Path to a directory.
 ###     (partial_file_name) Part of a file name string minus the extension.
 ###     (ignore_files_list) List of files to ignore (because already found).
+###     (use_random_image) Use a random image or select the first (pref) image found.
 ###     --> Returns a [Path]
-def searchImageDirectory(directory, partial_file_name, ignore_files_list = []):
+def searchImageDirectory(directory, partial_file_name, ignore_files_list = [], use_random_image = False):
     file_found = None
+    region_priority_list = all_the_data.get(REGION_PRIORITY, DEFAULT_REGIONS) # Missing, use defaults
+    region_priority_list = region_priority_list if region_priority_list else DEFAULT_REGIONS # None, use defaults
+    format_preference = all_the_data.get(FORMAT_PREFERENCE)
+    pref_file_paths = []
+    not_pref_file_paths = []
+    
+    ## TODO: Image number pref? (01,02,...)
+    ## TODO: Only PNG when gathering LaunchBox images if no Pillow
     
     # Problematic Characters
     for ic in illegal_characters:
@@ -747,14 +810,45 @@ def searchImageDirectory(directory, partial_file_name, ignore_files_list = []):
     for ec in re_escape_characters:
         partial_file_name = partial_file_name.replace(ec, f'\\{ec}')
     
-    for root, dirs, files in Search(directory):
-        for file in files:
-            file_path = Path(PurePath().joinpath(root, file))
-            if file_path in ignore_files_list: continue
+    for region in region_priority_list:
+        
+        if region == 'Region Free' or region == '' or region == '.':
+            region_path = Path(directory)
+        else:
+            region_path = Path(PurePath().joinpath(directory, region))
+        
+        if region_path.exists():
             
-            # Match: [Game Title] + [.<ID>-##] or [-##]
-            if re.match(f'{partial_file_name}[\.|\-]', file_path.stem, re.IGNORECASE):
-                return file_path
+            for root, dirs, files in Search(region_path):
+                for file in files:
+                    file_path = Path(PurePath().joinpath(root, file))
+                    if file_path in ignore_files_list: continue
+                    
+                    # Match: [Game Title] + [.<ID>-##] or [-##]
+                    if re.match(f'{partial_file_name}[\.|\-]', file_path.stem, re.IGNORECASE):
+                        if format_preference == None or file_path.suffix in format_preference:
+                            if use_random_image:
+                                pref_file_paths.append(file_path)
+                            else:
+                                return file_path # No random and no preference or preference is found
+                        else:
+                            not_pref_file_paths.append(file_path)
+                
+                # If use_random_image and any images found select one from a list randomly
+                if use_random_image and (pref_file_paths or not_pref_file_paths):
+                    
+                    if format_preference == None:
+                        not_pref_file_paths.extend(pref_file_paths)
+                        return RandomOption(not_pref_file_paths) # Randomly selected from all
+                    else:
+                        if pref_file_paths:
+                            return RandomOption(pref_file_paths) # Randomly selected from pref only
+                        elif not_pref_file_paths:
+                            return RandomOption(not_pref_file_paths) # Randomly selected from not pref only
+                
+                # If a preferred image format was not found but another was found...
+                if not_pref_file_paths:
+                    return not_pref_file_paths[0]
     
     return file_found
 
