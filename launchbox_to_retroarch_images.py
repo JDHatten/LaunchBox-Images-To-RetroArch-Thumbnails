@@ -44,7 +44,7 @@ TODO:
     [X] Find a way to match up LaunchBox and RetroArch databases/platforms, for faster searches.
     [X] Priorities for Region (NA,Japan,etc), Format (.jpg,.png,etc), and Number (01,02,etc).
         [X] Random number option
-        [] Auto-detect region?
+        [X] Auto-detect region
     [] 
 
 '''
@@ -172,7 +172,8 @@ COMPRESSION = 5   # Possible compress levels are between 1-9, default 6, and aut
 
 # Default LaunchBox image category priorities when selecting thumbnails for RetroArch.
 # Find all media types in LaunchBox "Tools / Manage / Platforms / Edit Platform / Folders / Media Type"
-# Note: Don't modify these defaults, use the existing presets or make your own presets instead.
+# Note: Don't modify these defaults directly, modify FRONT_BOXART_PRIORITY, TITLE_SCREEN_PRIORITY,
+#       and/or GAMEPLAY_SCREEN_PRIORITY in the existing presets or make your own presets instead.
 DEFAULT_FRONT_BOXARTS =    ['Box - Front',
                             'Box - Front - Reconstructed',
                             'Fanart - Box - Front',
@@ -190,7 +191,8 @@ DEFAULT_GAMEPLAY_SCREENS = ['Screenshot - Gameplay',
 SKIP = 0 # Skip searching for images in given category and don't use above defaults.
 
 # Default LaunchBox region priorities when selecting thumbnails for RetroArch.
-# Note: Don't modify these defaults, use the existing presets or make your own presets instead.
+# Note: Don't modify these defaults directly, modify REGION_PRIORITY in the existing presets
+#       or make your own presets instead.
 DEFAULT_REGIONS = ['Region Free', # Default Root Directory
                    'North America',
                    'United States',
@@ -228,6 +230,73 @@ DEFAULT_REGIONS = ['Region Free', # Default Root Directory
                    'Taiwan',
                    'The Netherlands']
 
+# Use only select images for games from specific auto-detected regions? Basically meaning no
+# image will be selected if there are none found in a specific region (even though there are
+# existing images for a game from another region in LaunchBox).
+detected_regions_only = False
+
+# Always include region free images when using the above "detected_regions_only" option.
+# Note: These images aren’t necessarily "region free", but instead images that aren’t in
+#       specific LaunchBox region folders.
+always_use_region_free = True ## TODO
+
+# Game files usually have "Codes" in their file names that show what region or part of the
+# world they were released in. Using these codes images will be selected first from the region
+# the game was released in.
+auto_region_detector = {
+  #-Region Codes From Game File Names          : -Region Directories From LaunchBox
+  
+  # Common Region Codes
+  ('U','US','USA','NA')                        : ['North America','United States'],
+  ('E','EU','EUR','Europe')                    : ['Europe','Europe, Japan'],
+  ('J','JP','JAP','Japan')                     : ['Japan','Japan, Korea'],
+  
+  #('Asia', 'A')                               : ['Asia'],
+  #('S.America','SA')                          : ['South America'],
+  
+  # Common Deul Region Codes
+  ('UE','EU','USA, Europe', 'Europe, USA')     : ['United States, Europe'],
+  ('UJ','JU','USA, Japan', 'Japan, USA')       : ['United States, Japan'],
+  ('EJ','JE','Europe, Japan', 'Japan, Europe') : ['Europe, Japan'],
+  ('1','JK')                                   : ['Japan, Korea'],
+  ('4','UB')                                   : ['United States, Brazil'],
+  
+  # NTSC and PAL Codes: (These codes repersent old media standards no longer used, but sometimes found on old roms.)
+  ('5')                                        : ['North America','United States','Canada','World','Japan',
+                                                  'Japan, Korea','Korea','Taiwan'],
+  ('8')                                        : ['Europe','Australia','Brazil','China','Finland','Germany','Greece',
+                                                  'Hong Kong','Italy','Norway','Spain','Sweden','The Netherlands'],
+  
+  # Country Codes
+  ('Australia','A','AU','AUS')                 : ['Australia','United States, Australia','Oceania'],
+  ('Brazil','B','BR','BRA')                    : ['Brazil','United States, Brazil','South America'],
+  ('Canada','CA','CAN')                        : ['Canada','North America'],
+  ('China','C','CN','CHN')                     : ['China','Asia'],
+  ('Finland','FI','FIN')                       : ['Finland','Europe'],
+  ('France','F','FR','FRA','FC')               : ['France','French Canadian','Europe'],
+  ('Germany','G','DE','DEU')                   : ['Germany','Europe'],
+  ('Greece','GR','GRC')                        : ['Greece','Europe'],
+  ('Hong Kong','HK','HKG')                     : ['Hong Kong','Asia'],
+  ('Italy','I','IT','ITA')                     : ['Italy','Europe'],
+  ('Korea','K','KR','KOR')                     : ['Korea','Japan, Korea','Asia'],
+  ('Norway','NO','NOR')                        : ['Norway','Europe'],
+  ('Russia','R','RU','RUS')                    : ['Russia','Europe'],
+  ('Spain','S','ES','ESP')                     : ['Spain','Europe'],
+  ('Sweden','SW','SWE')                        : ['Sweden','Europe'],
+  ('Taiwan','T','TW','TWN')                    : ['Taiwan','Asia'],
+  ('The Netherlands','NL','NLD','H')           : ['The Netherlands','Holland','Europe'],
+  
+  ## TODO: (M#) Multi-language?
+  
+  # Unlicensed Game Codes: (Most unlicensed games come from Taiwan.)
+  ('Unlicensed','Unl')                         : ['Taiwan','Asia'],
+
+  # World Codes, (FF = F for Sega Genesis roms only), Handled in code
+  ## TODO: FF = F for genesis only so as to not be mixed up with France
+  ('W','World','FF','UEJ','UJE','EUJ','EJU','JUE','JEU') : ['World','United States, Japan, Europe'],
+}
+
+
 ### Select the default preset to use here. ###
 selected_preset = 5
 
@@ -238,8 +307,8 @@ preset0 = { #               : Defaults                  # If option omitted, the
   GAMEPLAY_SCREEN_PRIORITY  : DEFAULT_GAMEPLAY_SCREENS, #   Use SKIP to ignore and not copy any images including defaults.
   REGION_PRIORITY           : DEFAULT_REGIONS,          # A list of LaunchBox regions (in order of priority) to select RetroArch thumbnails from.
   FORMAT_PREFERENCE         : None,                     # LaunchBox image format selection preference, '.png' or '.jpg'. Launchbox only allows JPEG or PNG image files.
-                                                        #   And RetroArch only allows PNG image files so JPEG images will be converted to PNG.
-  STARTING_IMAGE_NUMBER     : 1,                        ## TODO: 
+                                                        #   And RetroArch only allows PNG image files so JPEG images will be converted to PNG (if Pillow is installed).
+  STARTING_IMAGE_NUMBER     : 1,                        ## TODO: ?
   ALTERNATE_BOXART_IMAGES   : False,                    # Use different alternating images with games that have additional discs, regions, versions, hacks, etc.
   ALTERNATE_TITLE_IMAGES    : False,                    #   Only used if there is more than one image found. Options: True, False, RANDOM
   ALTERNATE_GAMEPLAY_IMAGES : True,                     #   If set to False the same image will be used for each game file.
@@ -249,7 +318,7 @@ preset0 = { #               : Defaults                  # If option omitted, the
   KEEP_ASPECT_RATIO         : True,                     # Keep aspect ratio only if one size, width or height, has changed.
   SEARCH_SUB_DIRS           : False,                    # After searching for games in a directory also search sub-directories.
   OVERWRITE_IMAGES          : False,                    # Overwrite RetroArch thumbnail images, else skip the images that already exist.
-}                                                       # Overall Priority: Image Category > Region > Format > Number
+}                                                       ## TODO: Overall Priority Option? -Default: Image Category > Region > Format > Number
 
 preset1 = {
   DESCRIPTION               : ('Front and back boxart with a gameplay image. '+
@@ -318,10 +387,14 @@ preset4 = {
 }
 preset5 = {
   DESCRIPTION               : ('Front and back boxart with a random gameplay image. '+
-                               'And downscale image heights to 720.'),
-  TITLE_SCREEN_PRIORITY     : ['Box - Back'],
-  #ALTERNATE_BOXART_IMAGES   : RANDOM,
-  #ALTERNATE_TITLE_IMAGES    : RANDOM,
+                               'And image heights downscaled to 720.'),
+  TITLE_SCREEN_PRIORITY     : ['Box - Back',
+                               'Box - Back - Reconstructed',
+                               'Fanart - Box - Back',
+                               'Screenshot - Game Title'],
+  #GAMEPLAY_SCREEN_PRIORITY  : ['Screenshot - Gameplay'],
+  #ALTERNATE_BOXART_IMAGES   : True,
+  #ALTERNATE_TITLE_IMAGES    : True,
   ALTERNATE_GAMEPLAY_IMAGES : RANDOM,
   #FORMAT_PREFERENCE         : PNG,
   MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
@@ -344,6 +417,7 @@ debug = False
 
 import configparser
 from datetime import datetime
+import itertools
 import json
 from pathlib import Path, PurePath
 try:
@@ -422,17 +496,21 @@ EDIT_ERROR = 2
 # Multi-Disc Regular Expression
 #re_disc_info_compiled_pattern = re.compile(re_disc_info_pattern, re.IGNORECASE)
 
-# Regular Expression to find a number
+# Regular Expression to find a number.
 re_number_compiled_pattern = re.compile( '\d*\.?\d*', re.IGNORECASE )
 
-# Regular Expression to find a text inside (parenthesizes).
-re_parenthesis_text_compiled_pattern = re.compile( '\s*\(\w*\s*\w*\)', re.IGNORECASE  )
+# Regular Expression matching the text within (parenthesis) in game file names.
+re_game_info_pattern = ( '[\(][\w|\.|\,|\;|\'|\-|\s]*[\)]' )
+re_game_info_compiled_pattern = re.compile( re_game_info_pattern, re.IGNORECASE )
+
+# Regular Expression to find text such as " (parenthesizes)".
+re_parenthesis_text_compiled_pattern = re.compile( '\s*'+re_game_info_pattern, re.IGNORECASE  )
 
 # Characters not allowed in file names.
 illegal_characters = list( '\\|:"<>/?' )
 
 # Characters to escape in RE searches.
-re_escape_characters = list('.^$*+()[]{}')
+re_escape_characters = list( '.^$*+()[]{}' )
 
 ROOT_DIR = Path(__file__).parent
 
@@ -466,6 +544,7 @@ def changePreset(preset, all_the_data = {}):
         all_the_data[LOG_DATA] = {}
         all_the_data[LOG_DATA][IMAGES_FOUND] = 0
         all_the_data[LOG_DATA][CURRENT_GAME_PATH] = ''
+        #all_the_data[LOG_DATA][GAME_PATHS] = {}
         all_the_data[LOG_DATA][SAVED_IMAGE_PATHS] = {}
         all_the_data[LOG_DATA][GAME_PATHS_IN_LB_RA] = []
         all_the_data[LOG_DATA][IMAGE_EDITS] = {}
@@ -708,32 +787,70 @@ def searchForGameImages(all_the_data):
                         
                         if platform in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS]:
                             
+                            ## TODO: Get region from LaunchBox game data? Maybe as a backup if region code not found in game file name?
+                            region, region_priority_list = getRegionPriority(all_the_data)
+                            
+                            if game_title in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform].get(GAME_PATHS, {}):
+                                #all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title].append(game_path)
+                                all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title].update({ game_path : region })
+                            else:
+                                #all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS].update({game_title : [game_path]})
+                                all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS].update({game_title : { game_path : region }})
+                            
                             if front_boxart_priority != SKIP:
                                 print(f'\nSearching for best image to use for a RetroArch Boxart thumbnail...')
-                                all_the_data = saveImagePaths(all_the_data, platform, game_title, FRONT_BOXART, DEFAULT_FRONT_BOXARTS)
+                                all_the_data = saveImagePaths(all_the_data, platform, game_title, FRONT_BOXART, DEFAULT_FRONT_BOXARTS, region_priority_list)
                             
                             if title_screen_priority != SKIP:
                                 print(f'\nSearching for best image to use for a RetroArch Title thumbnail...')
-                                all_the_data = saveImagePaths(all_the_data, platform, game_title, TITLE_SCREEN, DEFAULT_TITLE_SCREENS)
+                                all_the_data = saveImagePaths(all_the_data, platform, game_title, TITLE_SCREEN, DEFAULT_TITLE_SCREENS, region_priority_list)
                             
                             if gameplay_screen_priority != SKIP:
                                 print(f'\nSearching for best image to use for a RetroArch Snap thumbnail...')
-                                all_the_data = saveImagePaths(all_the_data, platform, game_title, GAMEPLAY_SCREEN, DEFAULT_GAMEPLAY_SCREENS)
+                                all_the_data = saveImagePaths(all_the_data, platform, game_title, GAMEPLAY_SCREEN, DEFAULT_GAMEPLAY_SCREENS, region_priority_list)
                             
                             #print(all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][IMAGE_PATHS][game_title])
-                            
-                            if game_title in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform].get(GAME_PATHS, {}):
-                                all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title].append(game_path)
-                            else:
-                                all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS].update({game_title : [game_path]})
                         
                         game_found = True
                         break
-                
                 if game_found: break
         if game_found: break
     
     return all_the_data
+
+
+### Get region priority list which could be auto-detected and reordered from either the preset or default option.
+###     (all_the_data) A Dictionary of all the details on what images to find and how to
+###                    handle them with logs of everything done so far.
+###     --> Returns a [String] and [List]
+def getRegionPriority(all_the_data):
+    game_region = None
+    region_priority_reordered_list = None
+    game_path = all_the_data[LOG_DATA][CURRENT_GAME_PATH]
+    game_info_list = re_game_info_compiled_pattern.findall(game_path.stem)
+    region_priority_list = all_the_data.get(REGION_PRIORITY, DEFAULT_REGIONS) # Missing, use defaults
+    region_priority_list = region_priority_list if region_priority_list else DEFAULT_REGIONS # None, use defaults
+    
+    ## TODO: prioritize_region_free = True,False,ENGLISH_LANGUAGE_ONLY ?
+    
+    for region_code, region_directories in auto_region_detector.items():
+        for game_info in game_info_list:
+            game_region = game_info[1:-1]
+            if game_region in region_code:
+                region_priority_reordered_list = region_directories
+                if not detected_regions_only:
+                    for dir in region_priority_list:
+                        if dir not in region_priority_reordered_list:
+                            region_priority_reordered_list.append(dir)
+                break
+        if region_priority_reordered_list:
+            break
+    
+    if region_priority_reordered_list:
+        region_priority_list = region_priority_reordered_list
+    #print(region_priority_list)
+    
+    return game_region, region_priority_list
 
 
 ### Record and properly categorize images to later transfer to RetroArch.
@@ -743,11 +860,14 @@ def searchForGameImages(all_the_data):
 ###     (game_title) Game title string.
 ###     (media) Key name of image category priority option.
 ###     (default_media) Default list of image categories.
+###     (region_priority_list) A list of regions in order of priority.
 ###     --> Returns a [Dictionary]
-def saveImagePaths(all_the_data, platform, game_title, media, default_media = {}):
+def saveImagePaths(all_the_data, platform, game_title, media, default_media, region_priority_list):
+    game_path = all_the_data[LOG_DATA][CURRENT_GAME_PATH]
     platform_data = all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS].get(platform)
-    media_type_list = all_the_data.get(media, default_media) # Missing, use defaults
-    media_type_list = media_type_list if media_type_list else default_media # None, use defaults
+    region = platform_data[GAME_PATHS][game_title][game_path] ##get?
+    image_category_priorities = all_the_data.get(media, default_media) # Missing, use defaults
+    image_category_priorities = image_category_priorities if image_category_priorities else default_media # None, use defaults
     
     if media == FRONT_BOXART:
         use_random_image = True if all_the_data.get(ALTERNATE_BOXART_IMAGES) == RANDOM else False
@@ -759,30 +879,49 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media = {}
         use_random_image = False
     
     if not platform_data[IMAGE_PATHS].get(game_title):
-        platform_data[IMAGE_PATHS][game_title] = {}
+        platform_data[IMAGE_PATHS][game_title] = { FRONT_BOXART : {}, TITLE_SCREEN : {}, GAMEPLAY_SCREEN : {} }
     
-    # Get alternate images to use with games that have additional discs, regions, versions, hacks, etc.
-    existing_images = makeList(platform_data[IMAGE_PATHS][game_title].get(media, []))
+    # Get all alternate images to use with games that have additional discs, regions, versions, hacks, etc.
+    #existing_images = makeList(platform_data[IMAGE_PATHS][game_title].get(media, []))
+    current_region_images = makeList(platform_data[IMAGE_PATHS][game_title][media].get(region, []))
+    all_regions_images = list(itertools.chain.from_iterable(
+        platform_data[IMAGE_PATHS][game_title][media].values()
+    ))
     
-    for media_type in media_type_list:
+    for image_category in image_category_priorities:
         for path_data in platform_data[ALL_MEDIA_TYPES]:
             
-            if media_type == path_data[MEDIA_TYPE]:
+            if image_category == path_data[MEDIA_TYPE]:
                 
-                image_file_path = searchImageDirectory(path_data[DIR_PATH], game_title, existing_images, use_random_image)
+                ## TODO: change overall priorities? Example: region > image category
+                ## How? if region (get from auto_region_detector) != region used in searchImageDirectory?
+                ## save image_file_path, and only use if regions never match-up.
+                
+                image_file_path = searchImageDirectory(path_data[DIR_PATH], game_title, region_priority_list, all_regions_images, use_random_image)
                 
                 if image_file_path:
                     print(f'Found: {image_file_path}')
                     all_the_data[LOG_DATA][IMAGES_FOUND] += 1
                     
                     # Update images including possible alternates
-                    existing_images.append(image_file_path)
-                    platform_data[IMAGE_PATHS][game_title].update(
-                        #{ media : existing_images if existing_images else [image_file_path] }
-                        { media : existing_images }
+                    current_region_images.append(image_file_path)
+                    #platform_data[IMAGE_PATHS][game_title].update(
+                    #    { media : current_region_images }
+                    #)
+                    platform_data[IMAGE_PATHS][game_title][media].update(
+                        { region : current_region_images }
                     )
                     
                     return all_the_data
+    
+    # If no images were found for the current region, use the images found in all other regions, if
+    # there are any. This helps prevent having no images even though there is at least one image to
+    # use, but the code is trying to prevent dupes for times when there are many images to select from.
+    ## TODO: is there a situation where this shouldn't happen? detected_regions_only, any others?
+    if not detected_regions_only and not current_region_images and all_regions_images:
+        platform_data[IMAGE_PATHS][game_title][media].update(
+            { region : all_regions_images }
+        )
     
     return all_the_data
 
@@ -790,13 +929,12 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media = {}
 ### Search for an image file name within the directory provided and return the full Path.
 ###     (directory) A full Path to a directory.
 ###     (partial_file_name) Part of a file name string minus the extension.
+###     (region_priority_list) A list of regions in order of priority.
 ###     (ignore_files_list) List of files to ignore (because already found).
 ###     (use_random_image) Use a random image or select the first (pref) image found.
 ###     --> Returns a [Path]
-def searchImageDirectory(directory, partial_file_name, ignore_files_list = [], use_random_image = False):
-    file_found = None
-    region_priority_list = all_the_data.get(REGION_PRIORITY, DEFAULT_REGIONS) # Missing, use defaults
-    region_priority_list = region_priority_list if region_priority_list else DEFAULT_REGIONS # None, use defaults
+def searchImageDirectory(directory, partial_file_name, region_priority_list, ignore_files_list = [], use_random_image = False):
+    file_not_found = None
     format_preference = all_the_data.get(FORMAT_PREFERENCE)
     pref_file_paths = []
     not_pref_file_paths = []
@@ -844,13 +982,13 @@ def searchImageDirectory(directory, partial_file_name, ignore_files_list = [], u
                         if pref_file_paths:
                             return RandomOption(pref_file_paths) # Randomly selected from pref only
                         elif not_pref_file_paths:
-                            return RandomOption(not_pref_file_paths) # Randomly selected from not pref only
+                            return RandomOption(not_pref_file_paths) # Randomly selected from not_pref only
                 
                 # If a preferred image format was not found but another was found...
                 if not_pref_file_paths:
                     return not_pref_file_paths[0]
     
-    return file_found
+    return file_not_found
 
 
 ### Create RetroArch thumbnail file paths for each LaunchBox image found.
@@ -866,24 +1004,14 @@ def createRetroArchImagePaths(all_the_data):
     for platform, data in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS].items():
         for game_title, media in data[IMAGE_PATHS].items():
             
-            launchbox_front_boxart_paths = media.get(FRONT_BOXART, [None])
-            launchbox_title_screen_paths = media.get(TITLE_SCREEN, [None])
-            launchbox_gameplay_screen_paths = media.get(GAMEPLAY_SCREEN, [None])
+            game_paths = all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title]
+            
+            #launchbox_front_boxart_paths = media.get(FRONT_BOXART, [None])
+            #launchbox_title_screen_paths = media.get(TITLE_SCREEN, [None])
+            #launchbox_gameplay_screen_paths = media.get(GAMEPLAY_SCREEN, [None])
             
             print('\nGame Title:')
             print(f'  {game_title}')
-            print('Usable Front Boxart Images:')
-            boxart_paths = ",\n  ".join([str(path) for path in launchbox_front_boxart_paths])
-            print(f'  {boxart_paths}')
-            print('Usable Title Screen Images:')
-            title_paths = ",\n  ".join([str(path) for path in launchbox_title_screen_paths])
-            print(f'  {title_paths}')
-            print('Usable Gameplay Screen Images:')
-            gameplay_paths = ",\n  ".join([str(path) for path in launchbox_gameplay_screen_paths])
-            print(f'  {gameplay_paths}')
-            
-            game_paths = all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title]
-            #print(f'Game Paths: {game_paths}')
             
             for root, dirs, files in Search(all_the_data[APP_DATA][RETROARCH][PLAYLISTS_DIR_PATH]):
                 for file in files:
@@ -917,7 +1045,7 @@ def createRetroArchImagePaths(all_the_data):
                                 if retroarch_platform_name_match.find(launchbox_platform_name.casefold()) == -1:
                                     continue
                         
-                        if debug: print(f'Game in LB Platform: {launchbox_platform_name}, Searching RA Platform: {retroarch_platform_name}')
+                        if debug: print(f'-Game in LB Platform: {launchbox_platform_name}, Searching RA Platform: {retroarch_platform_name}')
                         
                         # Open and Read RetroArch Playlist File
                         retroarch_playlist_file = open(retroarch_playlist_path, 'r', encoding="UTF-8") # "cp866")
@@ -932,6 +1060,22 @@ def createRetroArchImagePaths(all_the_data):
                                     #print(f'  {game["label"]}')
                                     print('Game Path (Found In Both LaunchBox and RetroArch):')
                                     print(f'  {game["path"]}')
+                                    
+                                    region = data[GAME_PATHS][game_title][game_path]
+                                    #if media.get(region):
+                                    launchbox_front_boxart_paths = media[FRONT_BOXART].get(region, [None])
+                                    launchbox_title_screen_paths = media[TITLE_SCREEN].get(region, [None])
+                                    launchbox_gameplay_screen_paths = media[GAMEPLAY_SCREEN].get(region, [None])
+                                    print('Usable Front Boxart Images:')
+                                    boxart_paths = ",\n  ".join([str(path) for path in launchbox_front_boxart_paths])
+                                    print(f'  {boxart_paths}')
+                                    print('Usable Title Screen Images:')
+                                    title_paths = ",\n  ".join([str(path) for path in launchbox_title_screen_paths])
+                                    print(f'  {title_paths}')
+                                    print('Usable Gameplay Screen Images:')
+                                    gameplay_paths = ",\n  ".join([str(path) for path in launchbox_gameplay_screen_paths])
+                                    print(f'  {gameplay_paths}')
+                                    
                                     print('New RetroArch Thumbnail Paths:')
                                     #print(f'Database Name: {game["db_name"]}')
                                     #retroarch_platform_name = Path(game["db_name"]).stem
@@ -1015,14 +1159,18 @@ def createAllRetroArchThumbnailImages(all_the_data):
             for game_path in game_paths:
                 # Check if game is also in RetroArch (true if image paths were created)
                 if all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS].get(game_path):
-                    for media, image_source_paths in image_path_data.items():
+                    #for media, image_source_paths in image_path_data.items():
+                    for media, regions in image_path_data.items():
+                        
                         image_output_path = all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS][game_path][media]
                         
-                        all_the_data = createRetroArchThumbnailImage(
-                            all_the_data,
-                            image_source_paths, image_output_path,
-                            platform, game_title, game_path, media
-                        )
+                        for region, image_source_paths in regions.items():
+
+                            all_the_data = createRetroArchThumbnailImage(
+                                all_the_data,
+                                image_source_paths, image_output_path,
+                                platform, game_title, game_path, media
+                            )
     
     return all_the_data
 
@@ -1062,13 +1210,15 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
             use_image_alt = all_the_data.get(ALTERNATE_GAMEPLAY_IMAGES, True)
         else:
             use_image_alt = False
+        
         if use_image_alt:# and current_game_image_paths_log.get(game_path):
-            for game_path, media_types in current_game_image_paths_log.items():
+            for media_types in current_game_image_paths_log.values():
                 for media_type, save_data in media_types.items():
                     if media_type == media:
-                         if type(save_data[SAVE_INFO]) == int and save_data[SAVE_INFO] > 0:
+                        if type(save_data[SAVE_INFO]) == int and save_data[SAVE_INFO] > 0:
+                            
+                            # Next image, but start over and repeat if max hit
                             next_alt_image += 1
-                            # Start over and repeat if max hit
                             while next_alt_image >= len(image_source_paths):
                                 next_alt_image -= len(image_source_paths)
     
@@ -1412,7 +1562,7 @@ def getLogNumbers(all_the_data):
     launchbox_images_found = all_the_data[LOG_DATA][IMAGES_FOUND]
     games_found_in_lb_ra = len(all_the_data[LOG_DATA][GAME_PATHS_IN_LB_RA])
     image_edit_errors = 0
-    image_files_saved = 0
+    image_files_saved = 0 ## TODO: images saved that are dupes
     image_save_errors = 0
     
     # Time Formating
