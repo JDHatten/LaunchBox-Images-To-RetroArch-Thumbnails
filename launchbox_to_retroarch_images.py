@@ -204,6 +204,7 @@ DEFAULT_REGIONS = ['Region Free', # Default Root Directory
                    'United States, Korea',
                    'United States, Brazil',
                    'World',
+                   'United States, Japan, Europe',
                    'Europe',
                    'Europe, Japan',
                    'Australia',
@@ -247,9 +248,9 @@ auto_region_detector = {
   #-Region Codes From Game File Names          : -Region Directories From LaunchBox
   
   # Common Region Codes
-  ('U','US','USA','NA')                        : ['North America','United States'],
-  ('E','EU','EUR','Europe')                    : ['Europe','Europe, Japan'],
-  ('J','JP','JAP','Japan')                     : ['Japan','Japan, Korea'],
+  ('USA','U','US','NA')                        : ['North America','United States'],
+  ('Europe','E','EU','EUR')                    : ['Europe','Europe, Japan'],
+  ('Japan','J','JP','JAP')                     : ['Japan','Japan, Korea','Asia'],
   
   #('Asia', 'A')                               : ['Asia'],
   #('S.America','SA')                          : ['South America'],
@@ -261,7 +262,7 @@ auto_region_detector = {
   ('1','JK')                                   : ['Japan, Korea'],
   ('4','UB')                                   : ['United States, Brazil'],
   
-  # NTSC and PAL Codes: (These codes repersent old media standards no longer used, but sometimes found on old roms.)
+  # NTSC and PAL Codes (These codes repersent old media standards no longer used, but sometimes found on old roms.)
   ('5')                                        : ['North America','United States','Canada','World','Japan',
                                                   'Japan, Korea','Korea','Taiwan'],
   ('8')                                        : ['Europe','Australia','Brazil','China','Finland','Germany','Greece',
@@ -288,12 +289,11 @@ auto_region_detector = {
   
   ## TODO: (M#) Multi-language?
   
-  # Unlicensed Game Codes: (Most unlicensed games come from Taiwan.)
+  # Unlicensed Game Codes (Most unlicensed games come from Taiwan.)
   ('Unlicensed','Unl')                         : ['Taiwan','Asia'],
 
-  # World Codes, (FF = F for Sega Genesis roms only), Handled in code
-  ## TODO: FF = F for genesis only so as to not be mixed up with France
-  ('W','World','FF','UEJ','UJE','EUJ','EJU','JUE','JEU') : ['World','United States, Japan, Europe'],
+  # World Codes (Sega Genesis roms with F are changed to W in code to avoid mistaking it for France)
+  ('World','W','UEJ','UJE','EUJ','EJU','JUE','JEU') : ['World','United States, Japan, Europe'],
 }
 
 
@@ -393,8 +393,8 @@ preset5 = {
                                'Fanart - Box - Back',
                                'Screenshot - Game Title'],
   #GAMEPLAY_SCREEN_PRIORITY  : ['Screenshot - Gameplay'],
-  #ALTERNATE_BOXART_IMAGES   : True,
-  #ALTERNATE_TITLE_IMAGES    : True,
+  ALTERNATE_BOXART_IMAGES   : True,
+  ALTERNATE_TITLE_IMAGES    : True,
   ALTERNATE_GAMEPLAY_IMAGES : RANDOM,
   #FORMAT_PREFERENCE         : PNG,
   MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
@@ -522,13 +522,16 @@ ROOT_DIR = Path(__file__).parent
 ###     --> Returns a [Dictionary]
 def changePreset(preset, all_the_data = {}):
     # If Pillow not installed and the preset selected is attempting to modify images...
-    if not pillow_installed and (preset.get(MODIFY_IMAGE_WIDTH) or preset.get(MODIFY_IMAGE_HEIGHT)):
-        print('\nYou\'re attempting to modify images without first installing "Pillow".')
-        print('Pillow is a Python imaging library that must be installed in order to modify images.')
-        print('This includes changing image formats to PNG which is required to work in RetroArch.')
-        print('Check the "Requirements" section of this script for more information.')
-        input('Press "Enter" to continue script without image modification features.')
-        print()
+    if (not pillow_installed and
+       (preset.get(MODIFY_IMAGE_WIDTH) or
+        preset.get(MODIFY_IMAGE_HEIGHT) or
+        preset.get(FORMAT_PREFERENCE))):
+            print('\nYou\'re attempting to modify images without first installing "Pillow".')
+            print('Pillow is a Python imaging library that must be installed in order to modify images.')
+            print('This includes changing image formats to PNG which is required to work in RetroArch.')
+            print('Check the "Requirements" section of this script for more information.')
+            input('Press "Enter" to continue script without image modification features.')
+            print()
     
     app_data = all_the_data.get(APP_DATA, {}).copy()
     log_data = all_the_data.get(LOG_DATA, {}).copy()
@@ -763,32 +766,34 @@ def searchForGameImages(all_the_data):
                 # Find games in <Game> (default) and <AdditionalApplication> (additional discs, regions, versions, hacks, etc)
                 app_id = 'zzzzzzzzzz'
                 game_id = 'xxxxxxxxxx'
+                launchbox_game_region = None
                 
                 #if is_multidisc_game:
                 for game_data in xml_file_data.findall('AdditionalApplication'):
                     app_path = game_data.find('ApplicationPath').text
                     if app_path == str(game_path):
                         app_id = game_data.find('GameID').text
+                        launchbox_game_region = game_data.find('Region').text
                         break
                 
                 for game_data in xml_file_data.findall('Game'):
                     app_path = game_data.find('ApplicationPath').text
-                    
-                    #if is_multidisc_game:
                     game_id = game_data.find('ID').text
-                    
+
                     if app_path == str(game_path) or game_id == app_id:
                         platform = game_data.find('Platform').text
                         game_title = game_data.find('Title').text
+                        if not launchbox_game_region:
+                            launchbox_game_region = game_data.find('Region').text
                         
                         if debug: print(f'  <ApplicationPath>{app_path}</ApplicationPath>')
                         if debug: print(f'  <Platform>{platform}</Platform>')
                         if debug: print(f'  <Title>{game_title}</Title>')
+                        if debug: print(f'  <Region>{launchbox_game_region}</Region>')
                         
                         if platform in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS]:
                             
-                            ## TODO: Get region from LaunchBox game data? Maybe as a backup if region code not found in game file name?
-                            region, region_priority_list = getRegionPriority(all_the_data)
+                            region, region_priority_list = getRegionPriority(all_the_data, platform, launchbox_game_region)
                             
                             if game_title in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform].get(GAME_PATHS, {}):
                                 #all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title].append(game_path)
@@ -819,12 +824,15 @@ def searchForGameImages(all_the_data):
     return all_the_data
 
 
-### Get region priority list which could be auto-detected and reordered from either the preset or default option.
+### Find or detect the region code and rebuild the region priority list from either the preset or default
+### option. Check file name first for a region code, and if missing use the LaunchBox region setting.
 ###     (all_the_data) A Dictionary of all the details on what images to find and how to
 ###                    handle them with logs of everything done so far.
+###     (platform) The platform a game belongs to.
+###     (launchbox_game_region) A game's region found in LaunchBox, used if no region code found.
 ###     --> Returns a [String] and [List]
-def getRegionPriority(all_the_data):
-    game_region = None
+def getRegionPriority(all_the_data, platform, launchbox_game_region = None):
+    game_region_code = None
     region_priority_reordered_list = None
     game_path = all_the_data[LOG_DATA][CURRENT_GAME_PATH]
     game_info_list = re_game_info_compiled_pattern.findall(game_path.stem)
@@ -835,8 +843,14 @@ def getRegionPriority(all_the_data):
     
     for region_code, region_directories in auto_region_detector.items():
         for game_info in game_info_list:
-            game_region = game_info[1:-1]
-            if game_region in region_code:
+            game_info = game_info[1:-1]
+            
+            # Change F to W for Sega Genesis only, so as to not be mixed up with the region France.
+            if game_info == 'F' and platform == 'Sega Genesis':
+                game_info = 'W' # World
+            
+            if game_info in region_code:
+                game_region_code = game_info
                 region_priority_reordered_list = region_directories
                 if not detected_regions_only:
                     for dir in region_priority_list:
@@ -848,9 +862,20 @@ def getRegionPriority(all_the_data):
     
     if region_priority_reordered_list:
         region_priority_list = region_priority_reordered_list
+    
+    # If no region code found in a game's file name, use the region setting from LaunchBox,
+    # if set, to build a region priority list from.
+    elif launchbox_game_region: ## TODO give higher prio to related regions too?
+        region_priority_reordered_list.append(launchbox_game_region)
+        if not detected_regions_only:
+            for dir in region_priority_list:
+                if dir not in region_priority_reordered_list:
+                    region_priority_reordered_list.append(dir)
+        region_priority_list = region_priority_reordered_list
+    
     #print(region_priority_list)
     
-    return game_region, region_priority_list
+    return game_region_code, region_priority_list
 
 
 ### Record and properly categorize images to later transfer to RetroArch.
@@ -882,7 +907,6 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
         platform_data[IMAGE_PATHS][game_title] = { FRONT_BOXART : {}, TITLE_SCREEN : {}, GAMEPLAY_SCREEN : {} }
     
     # Get all alternate images to use with games that have additional discs, regions, versions, hacks, etc.
-    #existing_images = makeList(platform_data[IMAGE_PATHS][game_title].get(media, []))
     current_region_images = makeList(platform_data[IMAGE_PATHS][game_title][media].get(region, []))
     all_regions_images = list(itertools.chain.from_iterable(
         platform_data[IMAGE_PATHS][game_title][media].values()
@@ -897,7 +921,9 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
                 ## How? if region (get from auto_region_detector) != region used in searchImageDirectory?
                 ## save image_file_path, and only use if regions never match-up.
                 
-                image_file_path = searchImageDirectory(path_data[DIR_PATH], game_title, region_priority_list, all_regions_images, use_random_image)
+                image_file_path = searchImageDirectory(
+                    path_data[DIR_PATH], game_title, region_priority_list, all_regions_images, use_random_image
+                )
                 
                 if image_file_path:
                     print(f'Found: {image_file_path}')
@@ -905,9 +931,6 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
                     
                     # Update images including possible alternates
                     current_region_images.append(image_file_path)
-                    #platform_data[IMAGE_PATHS][game_title].update(
-                    #    { media : current_region_images }
-                    #)
                     platform_data[IMAGE_PATHS][game_title][media].update(
                         { region : current_region_images }
                     )
@@ -940,7 +963,6 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
     not_pref_file_paths = []
     
     ## TODO: Image number pref? (01,02,...)
-    ## TODO: Only PNG when gathering LaunchBox images if no Pillow
     
     # Problematic Characters
     for ic in illegal_characters:
@@ -964,6 +986,13 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                     
                     # Match: [Game Title] + [.<ID>-##] or [-##]
                     if re.match(f'{partial_file_name}[\.|\-]', file_path.stem, re.IGNORECASE):
+                        
+                        # If Pillow not installed
+                        if not use_random_image and not pillow_installed and file_path.suffix in PNG:
+                            return file_path # No random and pillow not installed
+                        elif not pillow_installed and file_path.suffix not in PNG:
+                            continue # Can't use this image
+                        
                         if format_preference == None or file_path.suffix in format_preference:
                             if use_random_image:
                                 pref_file_paths.append(file_path)
@@ -972,7 +1001,7 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                         else:
                             not_pref_file_paths.append(file_path)
                 
-                # If use_random_image and any images found select one from a list randomly
+                # If use_random_image and any images found, select one from a list randomly
                 if use_random_image and (pref_file_paths or not_pref_file_paths):
                     
                     if format_preference == None:
@@ -1005,10 +1034,6 @@ def createRetroArchImagePaths(all_the_data):
         for game_title, media in data[IMAGE_PATHS].items():
             
             game_paths = all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title]
-            
-            #launchbox_front_boxart_paths = media.get(FRONT_BOXART, [None])
-            #launchbox_title_screen_paths = media.get(TITLE_SCREEN, [None])
-            #launchbox_gameplay_screen_paths = media.get(GAMEPLAY_SCREEN, [None])
             
             print('\nGame Title:')
             print(f'  {game_title}')
@@ -1294,9 +1319,9 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
             createMissingDirectories(image_output_path)
             CopyFile(image_source_path, image_output_path)
         else:
+            # This shouldn't ever show since only PNG images will be queried/used when Pillow not installed.
             print('  -WARNING: Without "Pillow" installed non-PNG images will not work in RetroArch.')
             print(f'  -Skipping image file: {image_source_path}')
-            ## TODO: Only PNG when gathering LaunchBox images if no Pillow
     
     current_game_image_paths_log[game_path][media] = [
         image_source_path, image_output_path, file_saved
@@ -1469,7 +1494,7 @@ def createLogFile(all_the_data, log_file_path = None):
     
     if log_data:
         (formated_completion_time, launchbox_images_found, games_found_in_lb_ra,
-         image_edit_errors, image_files_saved, image_save_errors) = getLogNumbers(all_the_data)
+         image_edit_errors, image_files_saved, image_file_dupes, image_save_errors) = getLogNumbers(all_the_data)
     else:
         print('\nNo log data found.')
         return False
@@ -1482,7 +1507,10 @@ def createLogFile(all_the_data, log_file_path = None):
     text_lines.append('=================================')
     text_lines.append(f'- Game Files Found in Both LaunchBox and RetroArch: {games_found_in_lb_ra}')
     text_lines.append(f'- Total Usable LaunchBox Images Found: {launchbox_images_found}')
-    text_lines.append(f'- Amount of RetroArch Thumbnails Saved: [ {image_files_saved} ]')
+    if image_file_dupes:
+        text_lines.append(f'- Amount of RetroArch Thumbnails Saved (Duplicates): [ {image_files_saved} ({image_file_dupes}) ]')
+    else:
+        text_lines.append(f'- Amount of RetroArch Thumbnails Saved: [ {image_files_saved} ]')
     if image_save_errors:
         text_lines.append(f'- Images Not Saved Due To Errors: {image_save_errors}')
     if image_edit_errors:
@@ -1556,14 +1584,16 @@ def createLogFile(all_the_data, log_file_path = None):
 ### Get the log numbers on the total amount of images found, edited, and saved as well as any errors.
 ###     (all_the_data) A Dictionary of all the details on what images to find and how to
 ###                    handle them with logs of everything done so far.
-###     --> Returns a [String] and [Integer] x 5
+###     --> Returns a [String] and [Integer] x 6
 def getLogNumbers(all_the_data):
     completion_time = all_the_data[LOG_DATA].get(COMPLETION_TIME, 0)
     launchbox_images_found = all_the_data[LOG_DATA][IMAGES_FOUND]
     games_found_in_lb_ra = len(all_the_data[LOG_DATA][GAME_PATHS_IN_LB_RA])
     image_edit_errors = 0
-    image_files_saved = 0 ## TODO: images saved that are dupes
+    image_files_saved = 0
+    image_file_dupes = 0
     image_save_errors = 0
+    image_source_paths = []
     
     # Time Formating
     completion_time = round(completion_time, 1)
@@ -1588,10 +1618,15 @@ def getLogNumbers(all_the_data):
                             image_edit_errors += 1
                     if type(save_data[SAVE_INFO]) == int and save_data[SAVE_INFO] > NOT_SAVED:
                         image_files_saved += 1
+                        if save_data[IMAGE_SOURCE] in image_source_paths:
+                            image_file_dupes += 1
+                        else:
+                            image_source_paths.append(save_data[IMAGE_SOURCE])
                     elif type(save_data) != int:
                         image_save_errors += 1
     
-    return formated_completion_time, launchbox_images_found, games_found_in_lb_ra, image_edit_errors, image_files_saved, image_save_errors
+    return (formated_completion_time, launchbox_images_found, games_found_in_lb_ra,
+            image_edit_errors, image_files_saved, image_file_dupes, image_save_errors)
 
 
 ### Open a log file for viewing.
@@ -1645,11 +1680,11 @@ if __name__ == '__main__':
             #all_the_data = createAllRetroArchThumbnailImages(all_the_data)
         
         (formated_completion_time, launchbox_images_found, games_found_in_lb_ra,
-         image_edit_errors, image_files_saved, image_save_errors) = getLogNumbers(all_the_data)
+         image_edit_errors, image_files_saved, image_file_dupes, image_save_errors) = getLogNumbers(all_the_data)
         
         print(f'\nAmount of Game Files Found in Both LaunchBox and RetroArch: {games_found_in_lb_ra}')
         print(f'Total Usable LaunchBox Images Found: {launchbox_images_found}')
-        print(f'Amount of RetroArch Images Saved: {image_files_saved}')
+        print(f'Amount of RetroArch Images Saved (Duplicates): {image_files_saved} ({image_file_dupes})')
         print(f'Images Not Saved Due To Errors: {image_save_errors}')
         print(f'Images That Failed Editing*: {image_edit_errors}')
         print('*If an error happens while editing an image, it still keeps it\'s previous edits and can still be saved.')
