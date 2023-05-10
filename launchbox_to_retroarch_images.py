@@ -45,7 +45,8 @@ TODO:
     [X] Priorities for Region (NA,Japan,etc), Format (.jpg,.png,etc), and Number (01,02,etc).
         [X] Random number option
         [X] Auto-detect region
-    [] 
+    [] Change Overall Priority Option - Default: Image Category > Region > Format > Number
+    [] Extra Image Saving Parameters
 
 '''
 
@@ -193,7 +194,7 @@ SKIP = 0 # Skip searching for images in given category and don't use above defau
 # Default LaunchBox region priorities when selecting thumbnails for RetroArch.
 # Note: Don't modify these defaults directly, modify REGION_PRIORITY in the existing presets
 #       or make your own presets instead.
-DEFAULT_REGIONS = ['Region Free', # Default Root Directory
+DEFAULT_REGIONS = ['Region Free', # = Default Root Directory (not always offically Region Free)
                    'North America',
                    'United States',
                    'United States, Europe',
@@ -236,10 +237,10 @@ DEFAULT_REGIONS = ['Region Free', # Default Root Directory
 # existing images for a game from another region in LaunchBox).
 detected_regions_only = False
 
-# Always include region free images when using the above "detected_regions_only" option.
+# Always include and prioritize "region free" images, even when using the above option.
 # Note: These images aren’t necessarily "region free", but instead images that aren’t in
-#       specific LaunchBox region folders.
-always_use_region_free = True ## TODO
+#       any specific LaunchBox region folders.
+always_prioritize_region_free = False
 
 # Game files usually have "Codes" in their file names that show what region or part of the
 # world they were released in. Using these codes images will be selected first from the region
@@ -796,10 +797,8 @@ def searchForGameImages(all_the_data):
                             region, region_priority_list = getRegionPriority(all_the_data, platform, launchbox_game_region)
                             
                             if game_title in all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform].get(GAME_PATHS, {}):
-                                #all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title].append(game_path)
                                 all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS][game_title].update({ game_path : region })
                             else:
-                                #all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS].update({game_title : [game_path]})
                                 all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS][platform][GAME_PATHS].update({game_title : { game_path : region }})
                             
                             if front_boxart_priority != SKIP:
@@ -833,13 +832,11 @@ def searchForGameImages(all_the_data):
 ###     --> Returns a [String] and [List]
 def getRegionPriority(all_the_data, platform, launchbox_game_region = None):
     game_region_code = None
-    region_priority_reordered_list = None
+    region_priority_reordered_list = []
     game_path = all_the_data[LOG_DATA][CURRENT_GAME_PATH]
     game_info_list = re_game_info_compiled_pattern.findall(game_path.stem)
     region_priority_list = all_the_data.get(REGION_PRIORITY, DEFAULT_REGIONS) # Missing, use defaults
     region_priority_list = region_priority_list if region_priority_list else DEFAULT_REGIONS # None, use defaults
-    
-    ## TODO: prioritize_region_free = True,False,ENGLISH_LANGUAGE_ONLY ?
     
     for region_code, region_directories in auto_region_detector.items():
         for game_info in game_info_list:
@@ -851,7 +848,12 @@ def getRegionPriority(all_the_data, platform, launchbox_game_region = None):
             
             if game_info in region_code:
                 game_region_code = game_info
-                region_priority_reordered_list = region_directories
+                
+                if always_prioritize_region_free:
+                    region_priority_reordered_list.append('Region Free')
+                
+                region_priority_reordered_list.extend(region_directories)
+                
                 if not detected_regions_only:
                     for dir in region_priority_list:
                         if dir not in region_priority_reordered_list:
@@ -958,7 +960,7 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
 ###     --> Returns a [Path]
 def searchImageDirectory(directory, partial_file_name, region_priority_list, ignore_files_list = [], use_random_image = False):
     file_not_found = None
-    format_preference = all_the_data.get(FORMAT_PREFERENCE)
+    format_preference = all_the_data.get(FORMAT_PREFERENCE) ## TODO: either add format_preference or all_the_data to params
     pref_file_paths = []
     not_pref_file_paths = []
     
@@ -985,7 +987,7 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                     if file_path in ignore_files_list: continue
                     
                     # Match: [Game Title] + [.<ID>-##] or [-##]
-                    if re.match(f'{partial_file_name}[\.|\-]', file_path.stem, re.IGNORECASE):
+                    if re.match(f'{partial_file_name}[\.|\-][\w|\-]*(\-?\d*\.)', file_path.name, re.IGNORECASE):
                         
                         # If Pillow not installed
                         if not use_random_image and not pillow_installed and file_path.suffix in PNG:
