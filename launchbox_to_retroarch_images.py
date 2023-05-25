@@ -47,6 +47,7 @@ TODO:
         [X] Auto-detect region
     [] Change Overall Priority Option - Default: Image Category > Region > Format > Number
     [] Extra Image Saving Parameters
+    [] Better archived game detection. "game.zip#game.rom"
 
 '''
 
@@ -137,16 +138,18 @@ TITLE_SCREEN_PRIORITY = 2
 GAMEPLAY_SCREEN_PRIORITY = 3
 REGION_PRIORITY = 4
 FORMAT_PREFERENCE = 5
-STARTING_IMAGE_NUMBER = 6
-ALTERNATE_BOXART_IMAGES = 7
-ALTERNATE_TITLE_IMAGES = 8
-ALTERNATE_GAMEPLAY_IMAGES = 9
-MODIFY_IMAGE_WIDTH = 10
-MODIFY_IMAGE_HEIGHT = 11
-IMAGE_RESAMPLING_FILTER = 12
-KEEP_ASPECT_RATIO = 13
-SEARCH_SUB_DIRS = 20
-OVERWRITE_IMAGES = 21
+ALTERNATE_BOXART_IMAGES = 6
+ALTERNATE_TITLE_IMAGES = 7
+ALTERNATE_GAMEPLAY_IMAGES = 8
+PREFERRED_BOXART_NUMBER = 9
+PREFERRED_TITLE_NUMBER = 10
+PREFERRED_GAMEPLAY_NUMBER = 11
+MODIFY_IMAGE_WIDTH = 20
+MODIFY_IMAGE_HEIGHT = 21
+IMAGE_RESAMPLING_FILTER = 22
+KEEP_ASPECT_RATIO = 23
+SEARCH_SUB_DIRS = 30
+OVERWRITE_IMAGES = 31
 
 RANDOM = 789
 
@@ -239,7 +242,7 @@ detected_regions_only = False
 
 # Always include and prioritize "region free" images, even when using the above option.
 # Note: These images aren’t necessarily "region free", but instead images that aren’t in
-#       any specific LaunchBox region folders.
+#       any specific region folders within LaunchBox.
 always_prioritize_region_free = False
 
 # Game files usually have "Codes" in their file names that show what region or part of the
@@ -309,10 +312,12 @@ preset0 = { #               : Defaults                  # If option omitted, the
   REGION_PRIORITY           : DEFAULT_REGIONS,          # A list of LaunchBox regions (in order of priority) to select RetroArch thumbnails from.
   FORMAT_PREFERENCE         : None,                     # LaunchBox image format selection preference, '.png' or '.jpg'. Launchbox only allows JPEG or PNG image files.
                                                         #   And RetroArch only allows PNG image files so JPEG images will be converted to PNG (if Pillow is installed).
-  STARTING_IMAGE_NUMBER     : 1,                        ## TODO: ?
   ALTERNATE_BOXART_IMAGES   : False,                    # Use different alternating images with games that have additional discs, regions, versions, hacks, etc.
   ALTERNATE_TITLE_IMAGES    : False,                    #   Only used if there is more than one image found. Options: True, False, RANDOM
   ALTERNATE_GAMEPLAY_IMAGES : True,                     #   If set to False the same image will be used for each game file.
+  PREFERRED_BOXART_NUMBER   : None,                     # Every image in LaunchBox has a number (GameTitle-##.jpg) to distinguish it from other images in the same category/region.
+  PREFERRED_TITLE_NUMBER    : None,                     #   This option will use that preferred number first, and only use others if either the preferred number isn't found
+  PREFERRED_GAMEPLAY_NUMBER : None,                     #   or is already selected in a game with multiple files (discs, regions, etc.). Has priority over ALTERNATE___IMAGES.
   MODIFY_IMAGE_WIDTH        : NO_CHANGE,                # Modify copied LaunchBox images before saving them as RetroArch thumbnails. Example: ('Image Modifier', Number)
   MODIFY_IMAGE_HEIGHT       : NO_CHANGE,                #   Image Modifiers: CHANGE_TO, MODIFY_BY_PIXELS, MODIFY_BY_PERCENT, UPSCALE, DOWNSCALE
   IMAGE_RESAMPLING_FILTER   : NEAREST,                  # Resampling changes the total number of pixels in an image. Filters: NEAREST, BILINEAR, BICUBIC
@@ -397,6 +402,9 @@ preset5 = {
   ALTERNATE_BOXART_IMAGES   : True,
   ALTERNATE_TITLE_IMAGES    : True,
   ALTERNATE_GAMEPLAY_IMAGES : RANDOM,
+  #PREFERRED_BOXART_NUMBER   : None,
+  #PREFERRED_TITLE_NUMBER    : None,
+  PREFERRED_GAMEPLAY_NUMBER : 3,
   #FORMAT_PREFERENCE         : PNG,
   MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
   IMAGE_RESAMPLING_FILTER   : BICUBIC,
@@ -893,17 +901,22 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
     game_path = all_the_data[LOG_DATA][CURRENT_GAME_PATH]
     platform_data = all_the_data[APP_DATA][LAUNCHBOX][PLATFORMS].get(platform)
     region = platform_data[GAME_PATHS][game_title][game_path] ##get?
+    format_preference = all_the_data.get(FORMAT_PREFERENCE)
     image_category_priorities = all_the_data.get(media, default_media) # Missing, use defaults
     image_category_priorities = image_category_priorities if image_category_priorities else default_media # None, use defaults
     
     if media == FRONT_BOXART:
         use_random_image = True if all_the_data.get(ALTERNATE_BOXART_IMAGES) == RANDOM else False
+        preferred_image_number = all_the_data.get(PREFERRED_BOXART_NUMBER)
     elif media == TITLE_SCREEN:
         use_random_image = True if all_the_data.get(ALTERNATE_TITLE_IMAGES) == RANDOM else False
+        preferred_image_number = all_the_data.get(PREFERRED_TITLE_NUMBER)
     elif media == GAMEPLAY_SCREEN:
         use_random_image = True if all_the_data.get(ALTERNATE_GAMEPLAY_IMAGES) == RANDOM else False
+        preferred_image_number = all_the_data.get(PREFERRED_GAMEPLAY_NUMBER)
     else:
         use_random_image = False
+        preferred_image_number = None
     
     if not platform_data[IMAGE_PATHS].get(game_title):
         platform_data[IMAGE_PATHS][game_title] = { FRONT_BOXART : {}, TITLE_SCREEN : {}, GAMEPLAY_SCREEN : {} }
@@ -924,7 +937,7 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
                 ## save image_file_path, and only use if regions never match-up.
                 
                 image_file_path = searchImageDirectory(
-                    path_data[DIR_PATH], game_title, region_priority_list, all_regions_images, use_random_image
+                    path_data[DIR_PATH], game_title, region_priority_list, all_regions_images, format_preference, use_random_image, preferred_image_number
                 )
                 
                 if image_file_path:
@@ -956,15 +969,15 @@ def saveImagePaths(all_the_data, platform, game_title, media, default_media, reg
 ###     (partial_file_name) Part of a file name string minus the extension.
 ###     (region_priority_list) A list of regions in order of priority.
 ###     (ignore_files_list) List of files to ignore (because already found).
+###     (format_preference) Prefer extension: JPG, PNG or None.
 ###     (use_random_image) Use a random image or select the first (pref) image found.
+###     (preferred_image_number) Preferred number in image file name.
 ###     --> Returns a [Path]
-def searchImageDirectory(directory, partial_file_name, region_priority_list, ignore_files_list = [], use_random_image = False):
+def searchImageDirectory(directory, partial_file_name, region_priority_list, ignore_files_list = [],
+                         format_preference = None, use_random_image = False, preferred_image_number = None):
     file_not_found = None
-    format_preference = all_the_data.get(FORMAT_PREFERENCE) ## TODO: either add format_preference or all_the_data to params
     pref_file_paths = []
     not_pref_file_paths = []
-    
-    ## TODO: Image number pref? (01,02,...)
     
     # Problematic Characters
     for ic in illegal_characters:
@@ -982,6 +995,9 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
         if region_path.exists():
             
             for root, dirs, files in Search(region_path):
+                
+                first_image_found = False
+                
                 for file in files:
                     file_path = Path(PurePath().joinpath(root, file))
                     if file_path in ignore_files_list: continue
@@ -989,9 +1005,25 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                     # Match: [Game Title] + [.<ID>-##] or [-##]
                     if re.match(f'{partial_file_name}[\.|\-][\w|\-]*(\-?\d*\.)', file_path.name, re.IGNORECASE):
                         
+                        # Once any game's title image found, any image afterwards "not matched"
+                        # will mean there aren’t any more images to find in this directory.
+                        first_image_found = True
+                        
+                        #print(re.match(f'{partial_file_name}[\.|\-][\w|\-]*(\-?0*{preferred_image_number}\.)', file_path.name, re.IGNORECASE))
+                        
+                        if preferred_image_number != None:
+                            if re.match(f'{partial_file_name}[\.|\-][\w|\-]*(\-?0*{preferred_image_number}\.)', file_path.name, re.IGNORECASE):
+                                ## TODO: let it be known preferred_image_number hit and not search for it again?
+                                ## so make preferred_image_number = None
+                                return file_path # Preferred Number Found
+                        
                         # If Pillow not installed
                         if not use_random_image and not pillow_installed and file_path.suffix in PNG:
-                            return file_path # No random and pillow not installed
+                            if preferred_image_number != None:
+                                pref_file_paths.append(file_path)
+                            else:
+                                return file_path # No random and pillow not installed
+                        
                         elif not pillow_installed and file_path.suffix not in PNG:
                             continue # Can't use this image
                         
@@ -999,9 +1031,15 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                             if use_random_image:
                                 pref_file_paths.append(file_path)
                             else:
-                                return file_path # No random and no preference or preference is found
+                                if preferred_image_number != None:
+                                    pref_file_paths.append(file_path)
+                                else:
+                                    return file_path# No random and 'no preference' or preference is found
                         else:
                             not_pref_file_paths.append(file_path)
+                    
+                    elif first_image_found:
+                        break
                 
                 # If use_random_image and any images found, select one from a list randomly
                 if use_random_image and (pref_file_paths or not_pref_file_paths):
@@ -1015,7 +1053,11 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                         elif not_pref_file_paths:
                             return RandomOption(not_pref_file_paths) # Randomly selected from not_pref only
                 
-                # If a preferred image format was not found but another was found...
+                # If a preferred number was not found but other preferred files were...
+                if pref_file_paths:
+                    return pref_file_paths[0]
+                
+                # If a preferred image was not found but another was found...
                 if not_pref_file_paths:
                     return not_pref_file_paths[0]
     
