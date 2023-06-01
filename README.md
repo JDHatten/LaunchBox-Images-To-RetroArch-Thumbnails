@@ -17,14 +17,14 @@ When the script reads a known game file (ROM, Disc, etc.) and it's listed in bot
 #### Image Category Priorities:
 The first important options are image category priorities. Each representing one of three RetroArch thumbnail image types.
 
-> *Defaults*:
+*Defaults*:
 ```
-FRONT_BOXART_PRIORITY : ['Box - Front','Box - Front - Reconstructed','Fanart - Box - Front','Box - 3D']
-TITLE_SCREEN_PRIORITY : ['Screenshot - Game Title','Screenshot - Game Select','Screenshot - High Scores','Screenshot - Game Over','Screenshot - Gameplay']
+FRONT_BOXART_PRIORITY    : ['Box - Front','Box - Front - Reconstructed','Fanart - Box - Front','Box - 3D']
+TITLE_SCREEN_PRIORITY    : ['Screenshot - Game Title','Screenshot - Game Select','Screenshot - High Scores','Screenshot - Game Over','Screenshot - Gameplay']
 GAMEPLAY_SCREEN_PRIORITY : ['Screenshot - Gameplay','Screenshot - Game Select','Screenshot - Game Over','Screenshot - High Scores','Screenshot - Game Title']
 ```
 
-> *All LaunchBox Image Categories*:
+*All LaunchBox Image Categories*:
 ```
 "Advertisement Flyer - Back"
 "Advertisement Flyer - Front"
@@ -80,7 +80,7 @@ GAMEPLAY_SCREEN_PRIORITY : ['Screenshot - Gameplay','Screenshot - Game Select','
 #### Region Priority:
 Once an image category is selected the region is auto-detected and images are first selected from that region or related regions. Check the `auto_region_detector` setting for more details. Use the preset option `REGION_PRIORITY` if you want to change the *default* region priorities from English speaking regions to other regions.  Note: "Region Free" are simply images that aren’t located in specific LaunchBox region folders, but instead the root folder.<br>
 
-> *Default Region Priorities*:
+*Default Region Priorities*:
 ```
 REGION_PRIORITY : ['Region Free',
                    'North America',
@@ -126,7 +126,7 @@ REGION_PRIORITY : ['Region Free',
 Next once all images are selected you can modify the images before saving them in RetroArch.
 
 ```
-MODIFY_IMAGE_WIDTH : ('Modifier', Number)
+MODIFY_IMAGE_WIDTH  : ('Modifier', Number)
 MODIFY_IMAGE_HEIGHT : ('Modifier', Number)
 ```
 > Modifiers: `CHANGE_TO`, `MODIFY_BY_PIXELS`, `MODIFY_BY_PERCENT`, `UPSCALE`, `DOWNSCALE`
@@ -146,8 +146,8 @@ KEEP_ASPECT_RATIO : True* or False
 #### Other Options:
 
 ```
-ALTERNATE_BOXART_IMAGES : True, False*, or RANDOM
-ALTERNATE_TITLE_IMAGES : True, False*, or RANDOM
+ALTERNATE_BOXART_IMAGES   : True, False*, or RANDOM
+ALTERNATE_TITLE_IMAGES    : True, False*, or RANDOM
 ALTERNATE_GAMEPLAY_IMAGES : True*, False, or RANDOM
 ```
 > Use different alternating images with games that have additional discs, regions, versions, hacks, etc. Only used if there is more than one image found. If set to False the same image will be used for each game file.
@@ -156,6 +156,13 @@ ALTERNATE_GAMEPLAY_IMAGES : True*, False, or RANDOM
 FORMAT_PREFERENCE : JPG or PNG
 ```
 > LaunchBox image format selection preference, '.png' or '.jpg'. LaunchBox only allows JPEG or PNG image files and RetroArch only allows PNG image files so JPEG images will be converted to PNG (if Pillow is installed).
+
+```
+PREFERRED_BOXART_NUMBER   : 1*-999
+PREFERRED_TITLE_NUMBER    : 1*-999
+PREFERRED_GAMEPLAY_NUMBER : 1*-999
+```
+> Every image in LaunchBox has a number (GameTitle-##.jpg) to distinguish it from other images in the same category/region. These options will use that preferred number first, and only use others if either the preferred number isn't found or is already selected in a game with multiple files (discs, regions, etc.). Has priority over ALTERNATE__IMAGES.
 
 ```
 SEARCH_SUB_DIRS : True or False*
