@@ -30,7 +30,8 @@ How To Use:
 
 
 Requirements:
-    Pillow is an imaging library that must be installed in order to modify images.
+    Pillow is an imaging library that must be installed in order to modify images, including the
+    necessary changing of formats (JPEG to PNG).
     - pip install Pillow
     - https://pypi.org/project/Pillow/
 
@@ -46,7 +47,7 @@ TODO:
         [X] Random number option
         [X] Auto-detect region
     [] Change Overall Priority Option - Default: Image Category > Region > Format > Number
-    [] Extra Image Saving Parameters
+    [X] Extra Image Saving Parameters
     [] Better archived game detection. "game.zip#game.rom"
 
 '''
@@ -148,6 +149,7 @@ MODIFY_IMAGE_WIDTH = 20
 MODIFY_IMAGE_HEIGHT = 21
 IMAGE_RESAMPLING_FILTER = 22
 KEEP_ASPECT_RATIO = 23
+EXTRA_IMAGE_SAVING_PARAMS = 24
 SEARCH_SUB_DIRS = 30
 OVERWRITE_IMAGES = 31
 
@@ -170,9 +172,9 @@ BICUBIC = 2   #
 JPEG = JPG = ('JPEG', '.jpg', '.jpeg', '.jpe')
 PNG = ('Portable Network Graphics', '.png')
 
-## TODO: Extra Image Saving Parameters (PNG Only)
-OPTIMIZE = 3      # Possible optimization values are True or False.
-COMPRESSION = 5   # Possible compress levels are between 1-9, default 6, and auto-set to 9 if OPTIMIZE is set to True.
+# Extra Image Saving Parameters (PNG Only)
+OPTIMIZE = 3           # Possible optimization values are True or False.
+COMPRESSION_LEVEL = 5  # Possible compress levels are between 1-9, default 6, and auto-set to 9+ if OPTIMIZE is set to True.
 
 # Default LaunchBox image category priorities when selecting thumbnails for RetroArch.
 # Find all media types in LaunchBox "Tools / Manage / Platforms / Edit Platform / Folders / Media Type"
@@ -322,6 +324,7 @@ preset0 = { #               : Defaults                  # If option omitted, the
   MODIFY_IMAGE_HEIGHT       : NO_CHANGE,                #   Image Modifiers: CHANGE_TO, MODIFY_BY_PIXELS, MODIFY_BY_PERCENT, UPSCALE, DOWNSCALE
   IMAGE_RESAMPLING_FILTER   : NEAREST,                  # Resampling changes the total number of pixels in an image. Filters: NEAREST, BILINEAR, BICUBIC
   KEEP_ASPECT_RATIO         : True,                     # Keep aspect ratio only if one size, width or height, has changed.
+  EXTRA_IMAGE_SAVING_PARAMS : None,                     # Extra Image Saving Parameters (PNG Only). Example: {OPTIMIZE : False, COMPRESSION_LEVEL : 7}
   SEARCH_SUB_DIRS           : False,                    # After searching for games in a directory also search sub-directories.
   OVERWRITE_IMAGES          : False,                    # Overwrite RetroArch thumbnail images, else skip the images that already exist.
 }                                                       ## TODO: Overall Priority Option? -Default: Image Category > Region > Format > Number
@@ -409,6 +412,7 @@ preset5 = {
   MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
   IMAGE_RESAMPLING_FILTER   : BICUBIC,
   KEEP_ASPECT_RATIO         : True,
+  EXTRA_IMAGE_SAVING_PARAMS : {COMPRESSION_LEVEL : 7},
   SEARCH_SUB_DIRS           : True,
   OVERWRITE_IMAGES          : True
 }
@@ -1014,7 +1018,7 @@ def searchImageDirectory(directory, partial_file_name, region_priority_list, ign
                         if preferred_image_number != None:
                             if re.match(f'{partial_file_name}[\.|\-][\w|\-]*(\-?0*{preferred_image_number}\.)', file_path.name, re.IGNORECASE):
                                 ## TODO: let it be known preferred_image_number hit and not search for it again?
-                                ## so make preferred_image_number = None
+                                ## so make preferred_image_number = None, upon calling def again.
                                 return file_path # Preferred Number Found
                         
                         # If Pillow not installed
@@ -1350,7 +1354,8 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
     if image_source:
         try:
             createMissingDirectories(image_output_path)
-            image_source.save(image_output_path)
+            params = getExtraSaveImageParams(all_the_data)
+            image_source.save(image_output_path, **params)
             error = None
         except (OSError, ValueError) as err:
             error = f'Failed To Save Image: {err}'
@@ -1510,6 +1515,38 @@ def createMissingDirectories(path):
         for i in reversed(range(0, len(path.parents))):
             path.parents[i].mkdir(mode=0o777, parents=False, exist_ok=True)
     return Path(path).exists()
+
+
+
+### Get any extra image saving parameters to use before finally saving an image file.
+###     (all_the_data) A Dictionary of all the details on what images to find and how to
+###                    handle them with logs of everything done so far.
+###     --> Returns a [Dictionary]
+def getExtraSaveImageParams(all_the_data):
+    save_params = {}
+    extra_image_saving_params = all_the_data.get(EXTRA_IMAGE_SAVING_PARAMS, {})
+    compress_min, compress_max = 1, 9
+    
+    for param, value in extra_image_saving_params.items():
+        
+        if param == OPTIMIZE:
+            if type(value) == bool:
+                save_params['optimize'] = value
+            else: # Default
+                save_params['optimize'] = False
+        
+        elif param == COMPRESSION_LEVEL:
+            if type(value) == int and value < compress_min:
+                save_params['compress_level'] = compress_min
+            elif type(value) == int and value > compress_max:
+                save_params['compress_level'] = compress_max
+            elif type(value) == int:
+                save_params['compress_level'] = value
+            else: # Default
+                print(f'  -WARNING: Unknown PNG "Compression" value used: "{value}", default value used instead.')
+                save_params['compress_level'] = 6
+    
+    return save_params
 
 
 ### Make any variable a list if not already a list tuple for looping purposes.
