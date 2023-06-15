@@ -141,6 +141,12 @@ KEEP_ASPECT_RATIO : True* or False
 ```
 > If only one size, width or height, has changed keep the aspect ratio with no distortion.
 
+```
+EXTRA_IMAGE_SAVING_PARAMS : {OPTIMIZE : True or False, COMPRESSION_LEVEL : 1-9}
+```
+> Default's to `COMPRESSION_LEVEL : 6`<br>
+> `OPTIMIZE` if set to True, will overwrite `COMPRESSION_LEVEL` to 9+.
+
 <br>
 
 #### Other Options:
