@@ -48,7 +48,7 @@ TODO:
         [X] Auto-detect region
     [] Change Overall Priority Option - Default: Image Category > Region > Format > Number
     [X] Extra Image Saving Parameters
-    [] Better archived game detection. "game.zip#game.rom"
+    [X] Better archived game detection. "game.zip#game.rom"
 
 '''
 
@@ -784,6 +784,7 @@ def searchForGameImages(all_the_data):
                 #if is_multidisc_game:
                 for game_data in xml_file_data.findall('AdditionalApplication'):
                     app_path = game_data.find('ApplicationPath').text
+                    
                     if app_path == str(game_path):
                         app_id = game_data.find('GameID').text
                         launchbox_game_region = game_data.find('Region').text
@@ -792,7 +793,7 @@ def searchForGameImages(all_the_data):
                 for game_data in xml_file_data.findall('Game'):
                     app_path = game_data.find('ApplicationPath').text
                     game_id = game_data.find('ID').text
-
+                    
                     if app_path == str(game_path) or game_id == app_id:
                         platform = game_data.find('Platform').text
                         game_title = game_data.find('Title').text
@@ -1124,18 +1125,32 @@ def createRetroArchImagePaths(all_the_data):
                         retroarch_playlist_file = open(retroarch_playlist_path, 'r', encoding="UTF-8") # "cp866")
                         retroarch_game_data = json.load(retroarch_playlist_file)['items']
                         
+                        # Number of games found under the same game title in RetroArch.
+                        ra_games_found = 0
+                        
                         for game in retroarch_game_data:
+                            ra_game_found = False
                             
                             for game_path in game_paths:
+                                ra_game_path = Path(game['path'])
                                 
-                                if game['path'] == str(game_path):
+                                # If an archived game points to a specific file inside of archive, remove "#file".
+                                # Example: "game.zip#game.rom"
+                                hash_index = ra_game_path.name.rfind(game_path.suffix + '#')
+                                if hash_index > -1:
+                                    ra_game_path = Path(PurePath().joinpath(ra_game_path.parent, f'{ra_game_path.name[:hash_index]}{game_path.suffix}'))
+                                
+                                #if game['path'] == str(game_path):
+                                if ra_game_path == game_path:
+                                    ra_game_found = True
+                                    ra_games_found += 1
+                                    
                                     #print('Game Title:')
                                     #print(f'  {game["label"]}')
                                     print('Game Path (Found In Both LaunchBox and RetroArch):')
                                     print(f'  {game["path"]}')
                                     
                                     region = data[GAME_PATHS][game_title][game_path]
-                                    #if media.get(region):
                                     launchbox_front_boxart_paths = media[FRONT_BOXART].get(region, [None])
                                     launchbox_title_screen_paths = media[TITLE_SCREEN].get(region, [None])
                                     launchbox_gameplay_screen_paths = media[GAMEPLAY_SCREEN].get(region, [None])
@@ -1210,9 +1225,22 @@ def createRetroArchImagePaths(all_the_data):
                                             retroarch_gameplay_screen_path,
                                             platform, game_title, game_path, GAMEPLAY_SCREEN
                                         )
+                                
+                                # If at least one game found in game_paths, move on to next RetroArch game.
+                                if ra_game_found:
+                                    break
+                            
+                            # If all games under the same game title found, move on to next game_title.
+                            if ra_games_found >= len(game_paths):
+                                break
                         
                         # Close RetroArch Playlist File
                         retroarch_playlist_file.close()
+                        
+                        # No need to search additional RetroArch playlists if at least one...
+                        ## TODO: would the same game ever be in multiple RetroArch playlists?
+                        if ra_game_found:
+                            break
                 
                 break # Ignore Sub-Directories
     
