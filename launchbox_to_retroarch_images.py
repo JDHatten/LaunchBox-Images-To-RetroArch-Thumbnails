@@ -406,7 +406,7 @@ preset5 = {
   ALTERNATE_TITLE_IMAGES    : True,
   ALTERNATE_GAMEPLAY_IMAGES : RANDOM,
   #PREFERRED_BOXART_NUMBER   : None,
-  #PREFERRED_TITLE_NUMBER    : None,
+  #PREFERRED_TITLE_NUMBER    : 3,
   PREFERRED_GAMEPLAY_NUMBER : 3,
   #FORMAT_PREFERENCE         : PNG,
   MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
@@ -439,7 +439,7 @@ try:
 except ModuleNotFoundError:
     pillow_installed = False
 from os import getenv, startfile as OpenFile, walk as Search
-from random import choice as RandomOption
+from random import choice as RandomOption, random as RandomNumber
 import re
 from shutil import copy2 as CopyFile
 import sys
@@ -1372,8 +1372,19 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
     if image_output_path.exists():
         if overwrite_retroarch_thumbnails:
             file_saved = OVERWRITTEN
-            image_output_path.unlink(missing_ok=True) # Delete
-            ## TODO: rename and delete later after successful save. if save error, revert rename.
+            # Rename and delete later after successful save or revert rename if an error occurs.
+            temp_file = Path(PurePath().joinpath(
+                image_output_path.parent,
+                f'{image_output_path.name}.tmp'
+            ))
+            if temp_file.exists():
+                temp_file = Path(PurePath().joinpath(
+                    image_output_path.parent,
+                    f'{image_output_path.name}.tmp{int(RandomNumber()*100000)}'
+                ))
+            ## TODO: how to handle read-only files? ignore? overwrite?
+            image_output_path.rename(temp_file)
+        
         else:
             file_saved = NOT_SAVED
     else:
@@ -1384,17 +1395,34 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
             createMissingDirectories(image_output_path)
             params = getExtraSaveImageParams(all_the_data)
             image_source.save(image_output_path, **params)
-            error = None
+            if file_saved == OVERWRITTEN:
+                temp_file.unlink(missing_ok=True) # Delete
+        
         except (OSError, ValueError) as err:
             error = f'Failed To Save Image: {err}'
             print(error)
             file_saved = error
+            if file_saved == OVERWRITTEN:
+                image_output_path.unlink(missing_ok=True) # Delete
+                temp_file.rename(image_output_path)
     
     # Alt: Copy and paste image file if Pillow not installed.
     elif not pillow_installed and file_saved != NOT_SAVED:
         if image_source_path.suffix == '.png':
-            createMissingDirectories(image_output_path)
-            CopyFile(image_source_path, image_output_path)
+            try:
+                createMissingDirectories(image_output_path)
+                CopyFile(image_source_path, image_output_path)
+                if file_saved == OVERWRITTEN:
+                    temp_file.unlink(missing_ok=True) # Delete
+            
+            except (OSError, ValueError) as err:
+                error = f'Failed To Save Image: {err}'
+                print(error)
+                file_saved = error
+                if file_saved == OVERWRITTEN:
+                    image_output_path.unlink(missing_ok=True) # Delete
+                    temp_file.rename(image_output_path)
+        
         else:
             # This shouldn't ever show since only PNG images will be queried/used when Pillow not installed.
             print('  -WARNING: Without "Pillow" installed non-PNG images will not work in RetroArch.')
@@ -1545,7 +1573,6 @@ def createMissingDirectories(path):
     return Path(path).exists()
 
 
-
 ### Get any extra image saving parameters to use before finally saving an image file.
 ###     (all_the_data) A Dictionary of all the details on what images to find and how to
 ###                    handle them with logs of everything done so far.
@@ -1658,12 +1685,16 @@ def createLogFile(all_the_data, log_file_path = None):
                         image_output = image_save_data[IMAGE_OUTPUT]
                         save_info = image_save_data[SAVE_INFO]
                         
-                        text_lines.append(f'  From LaunchBox:  {image_source}')
+                        ## TODO: show or don't show game title/files dropped if nothing was saved?
+                        
                         if type(save_info) != int:
+                            text_lines.append(f'  From LaunchBox:  {image_source}')
                             text_lines.append(f'    To RetroArch:  ERROR - {save_info}')
-                        else:
+                        elif save_info > NOT_SAVED:
+                            text_lines.append(f'  From LaunchBox:  {image_source}')
                             text_lines.append(f'    To RetroArch:  {image_output}')
                             
+                            #if save_info > NOT_SAVED:
                             image_edit_error = all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][image_output].get(ERROR)
                             image_size_edits = all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][image_output].get(MODIFY_IMAGE_SIZE)
                             if image_edit_error:
@@ -1722,7 +1753,7 @@ def getLogNumbers(all_the_data):
             for game_path, media_types in game_paths.items():
                 for media, save_data in media_types.items():
                     
-                    if (pillow_installed and
+                    if (pillow_installed and save_data[SAVE_INFO] != NOT_SAVED and
                         all_the_data[LOG_DATA][IMAGE_EDITS][platform][game_title][game_path][media][save_data[IMAGE_OUTPUT]].get(ERROR)):
                             image_edit_errors += 1
                     if type(save_data[SAVE_INFO]) == int and save_data[SAVE_INFO] > NOT_SAVED:
@@ -1731,7 +1762,7 @@ def getLogNumbers(all_the_data):
                             image_file_dupes += 1
                         else:
                             image_source_paths.append(save_data[IMAGE_SOURCE])
-                    elif type(save_data) != int:
+                    elif type(save_data[SAVE_INFO]) != int:
                         image_save_errors += 1
     
     return (formated_completion_time, launchbox_images_found, games_found_in_lb_ra,
