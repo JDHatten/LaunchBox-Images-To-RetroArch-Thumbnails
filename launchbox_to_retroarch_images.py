@@ -442,6 +442,7 @@ from os import getenv, startfile as OpenFile, walk as Search
 from random import choice as RandomOption, random as RandomNumber
 import re
 from shutil import copy2 as CopyFile
+import stat
 import sys
 import xml.etree.ElementTree as XMLParser
 
@@ -1365,63 +1366,71 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
         
         except (FileNotFoundError, TypeError, UnidentifiedImageError, ValueError) as err:
             error = f'Image Resize Failed: {err}'
-            print(error)
+            print(f'  -ERROR: {error}')
             current_game_image_edit_log[ERROR] = error
     
-    # Image Save
+    # Save Image File...
     if image_output_path.exists():
         if overwrite_retroarch_thumbnails:
-            file_saved = OVERWRITTEN
-            # Rename and delete later after successful save or revert rename if an error occurs.
-            temp_file = Path(PurePath().joinpath(
-                image_output_path.parent,
-                f'{image_output_path.name}.tmp'
-            ))
-            if temp_file.exists():
+            
+            # Check if file is read-only via file owner permissions.
+            file_permission = image_output_path.stat().st_mode & stat.S_IRWXU
+            
+            #if ((file_permission) == stat.S_IWUSR): # stat.S_IWRITE
+            if ((file_permission) == stat.S_IRUSR): # stat.S_IREAD
+                # If file is not writable, just let the error happen and don't rename file.
+                if debug: print(f'  -Read-Only File Permission: {file_permission}')
+                file_save_status = NOT_SAVED
+            
+            else:
+                # Rename and delete later after successful save or revert rename if an error occurs.
                 temp_file = Path(PurePath().joinpath(
                     image_output_path.parent,
-                    f'{image_output_path.name}.tmp{int(RandomNumber()*100000)}'
+                    f'{image_output_path.name}.tmp'
                 ))
-            ## TODO: how to handle read-only files? ignore? overwrite?
-            image_output_path.rename(temp_file)
+                if temp_file.exists():
+                    temp_file = Path(PurePath().joinpath(
+                        image_output_path.parent,
+                        f'{image_output_path.name}.tmp{int(RandomNumber()*100000)}'
+                    ))
+                image_output_path.rename(temp_file)
+                file_save_status = OVERWRITTEN
         
         else:
-            file_saved = NOT_SAVED
+            file_save_status = NOT_SAVED # Not Overwriting Files
     else:
-        file_saved = NEW_SAVE
+        file_save_status = NEW_SAVE
     
     if image_source:
         try:
             createMissingDirectories(image_output_path)
             params = getExtraSaveImageParams(all_the_data)
             image_source.save(image_output_path, **params)
-            if file_saved == OVERWRITTEN:
+            if file_save_status == OVERWRITTEN:
                 temp_file.unlink(missing_ok=True) # Delete
-        
         except (OSError, ValueError) as err:
-            error = f'Failed To Save Image: {err}'
-            print(error)
-            file_saved = error
-            if file_saved == OVERWRITTEN:
+            if file_save_status == OVERWRITTEN:
                 image_output_path.unlink(missing_ok=True) # Delete
                 temp_file.rename(image_output_path)
+            error = f'Failed To Save Image: {err}'
+            print(f'  -ERROR: {error}')
+            file_save_status = error
     
     # Alt: Copy and paste image file if Pillow not installed.
-    elif not pillow_installed and file_saved != NOT_SAVED:
+    elif not pillow_installed and file_save_status != NOT_SAVED:
         if image_source_path.suffix == '.png':
             try:
                 createMissingDirectories(image_output_path)
                 CopyFile(image_source_path, image_output_path)
-                if file_saved == OVERWRITTEN:
+                if file_save_status == OVERWRITTEN:
                     temp_file.unlink(missing_ok=True) # Delete
-            
             except (OSError, ValueError) as err:
-                error = f'Failed To Save Image: {err}'
-                print(error)
-                file_saved = error
-                if file_saved == OVERWRITTEN:
+                if file_save_status == OVERWRITTEN:
                     image_output_path.unlink(missing_ok=True) # Delete
                     temp_file.rename(image_output_path)
+                error = f'Failed To Save Image: {err}'
+                print(f'  -ERROR: {error}')
+                file_save_status = error
         
         else:
             # This shouldn't ever show since only PNG images will be queried/used when Pillow not installed.
@@ -1429,7 +1438,7 @@ def createRetroArchThumbnailImage(all_the_data, image_source_paths, image_output
             print(f'  -Skipping image file: {image_source_path}')
     
     current_game_image_paths_log[game_path][media] = [
-        image_source_path, image_output_path, file_saved
+        image_source_path, image_output_path, file_save_status
     ]
     
     return all_the_data
