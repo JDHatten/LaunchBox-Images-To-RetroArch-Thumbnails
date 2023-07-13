@@ -115,9 +115,8 @@ matching_platforms = {
   'NEC TurboGrafx-16'           : ['NEC - PC Engine - TurboGrafx 16', 'NEC - PC Engine CD - TurboGrafx-CD', 'NEC - PC Engine SuperGrafx'],
   'NEC TurboGrafx-CD'           : ['NEC - PC Engine - TurboGrafx 16', 'NEC - PC Engine CD - TurboGrafx-CD', 'NEC - PC Engine SuperGrafx'],
   'Nintendo DS'                 : ['Nintendo - Nintendo DS', 'Nintendo - Nintendo DS Decrypted', 'Nintendo - Nintendo DSi', 'Nintendo - Nintendo DSi Decrypted'],
-  'Nintendo DSi'                : ['Nintendo - Nintendo DS', 'Nintendo - Nintendo DS Decrypted', 'Nintendo - Nintendo DSi', 'Nintendo - Nintendo DSi Decrypted'],
-  'Nintendo NES'                : ['Nintendo - Nintendo Entertainment System'],
-  'Nintendo Super NES'          : ['Nintendo - Satellaview', 'Nintendo - Super Nintendo Entertainment System'],
+  'Nintendo Famicom Disk System': ['Nintendo - Nintendo Entertainment System'],
+  'Nintendo Satellaview'        : ['Nintendo - Satellaview', 'Nintendo - Super Nintendo Entertainment System'],
   'PC Engine SuperGrafx'        : ['NEC - PC Engine - TurboGrafx 16', 'NEC - PC Engine CD - TurboGrafx-CD', 'NEC - PC Engine SuperGrafx'],
   'Sega 32X'                    : ['Sega - 32X', 'Sega - Mega Drive - Genesis', 'Sega - Mega-CD - Sega CD'],
   'Sega CD'                     : ['Sega - 32X', 'Sega - Mega-CD - Sega CD'],
@@ -125,9 +124,10 @@ matching_platforms = {
   'Sega Genesis'                : ['Sega - 32X', 'Sega - Mega Drive - Genesis'],
   'Sinclair ZX Spectrum'        : ['Sinclair - ZX 81', 'Sinclair - ZX Spectrum +3', 'Sinclair - ZX Spectrum'],
   'Sinclair ZX-81'              : ['Sinclair - ZX 81', 'Sinclair - ZX Spectrum +3', 'Sinclair - ZX Spectrum'],
-  'Sony PlayStation'            : ['Sony - PlayStation'], # Only to avoid being matched with PlayStation 2/3.
+  'Sony Playstation'            : ['Sony - PlayStation'], # Only to avoid being matched with PlayStation 2/3.
   'Sony PSP'                    : ['Sony - PlayStation Portable', 'Sony - PlayStation Portable Vita'],
   'Sony PSP Minis'              : ['Sony - PlayStation Portable', 'Sony - PlayStation Portable Vita'],
+  'Super Nintendo Entertainment System' : ['Nintendo - Satellaview', 'Nintendo - Super Nintendo Entertainment System'],
   'VTech CreatiVision'          : ['VTech - CreatiVision', 'VTech - V.Smile'],
   'VTech Socrates'              : ['VTech - CreatiVision', 'VTech - V.Smile'],
 }
