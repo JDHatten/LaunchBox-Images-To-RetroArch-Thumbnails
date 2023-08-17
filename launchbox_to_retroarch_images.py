@@ -521,7 +521,8 @@ re_game_info_compiled_pattern = re.compile( re_game_info_pattern, re.IGNORECASE 
 re_parenthesis_text_compiled_pattern = re.compile( '\s*'+re_game_info_pattern, re.IGNORECASE  )
 
 # Characters not allowed in file names.
-illegal_characters = list( '\\|:"<>/?' )
+# Note: While not illegal LB replaces 'single quotes' as well.
+illegal_characters = list( '*\\|:\'"<>/?' )
 
 # Characters to escape in RE searches.
 re_escape_characters = list( '.^$*+()[]{}' )
@@ -1824,7 +1825,7 @@ if __name__ == '__main__':
             print(f'Time To Completion: {completion_time}')
         
         if launchbox_images_found:
-            input(f'Start Creating RetroArch Thumbnails?')
+            input(f'Start Creating RetroArch Thumbnails? [Enter]')
             all_the_data = createRetroArchImagePaths(all_the_data)
             #all_the_data = createAllRetroArchThumbnailImages(all_the_data)
         
