@@ -396,7 +396,7 @@ preset4 = {
 }
 preset5 = {
   DESCRIPTION               : ('Front and back boxart with a random gameplay image. '+
-                               'And image heights downscaled to 720.'),
+                               'And image heights downscaled to 1080.'),
   TITLE_SCREEN_PRIORITY     : ['Box - Back',
                                'Box - Back - Reconstructed',
                                'Fanart - Box - Back',
@@ -407,18 +407,36 @@ preset5 = {
   ALTERNATE_GAMEPLAY_IMAGES : RANDOM,
   #PREFERRED_BOXART_NUMBER   : None,
   #PREFERRED_TITLE_NUMBER    : 3,
-  PREFERRED_GAMEPLAY_NUMBER : 3,
+  #PREFERRED_GAMEPLAY_NUMBER : 2,
   #FORMAT_PREFERENCE         : PNG,
-  MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
+  MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 1080),
   IMAGE_RESAMPLING_FILTER   : BICUBIC,
   KEEP_ASPECT_RATIO         : True,
-  EXTRA_IMAGE_SAVING_PARAMS : {COMPRESSION_LEVEL : 7},
+  EXTRA_IMAGE_SAVING_PARAMS : {COMPRESSION_LEVEL : 9},
   SEARCH_SUB_DIRS           : True,
   OVERWRITE_IMAGES          : True
 }
-
+preset6 = {
+  DESCRIPTION               : ('Custom - Bonus Discs'),
+  FRONT_BOXART_PRIORITY     : ['Fanart - Box - Front'],
+  TITLE_SCREEN_PRIORITY     : ['Screenshot - Game Title'],
+  GAMEPLAY_SCREEN_PRIORITY  : ['Screenshot - Gameplay'],
+  ALTERNATE_BOXART_IMAGES   : True,
+  ALTERNATE_TITLE_IMAGES    : True,
+  ALTERNATE_GAMEPLAY_IMAGES : True,
+  #PREFERRED_BOXART_NUMBER   : None,
+  PREFERRED_TITLE_NUMBER    : 2,
+  PREFERRED_GAMEPLAY_NUMBER : 2,
+  FORMAT_PREFERENCE         : PNG,
+  MODIFY_IMAGE_HEIGHT       : (DOWNSCALE, 720),
+  IMAGE_RESAMPLING_FILTER   : BICUBIC,
+  KEEP_ASPECT_RATIO         : True,
+  EXTRA_IMAGE_SAVING_PARAMS : {COMPRESSION_LEVEL : 9},
+  SEARCH_SUB_DIRS           : True,
+  OVERWRITE_IMAGES          : True
+}
 # Add any newly created presets to this preset_options List.
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5]
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6]
 
 
 
@@ -1147,6 +1165,8 @@ def createRetroArchImagePaths(all_the_data):
                                     ra_game_found = True
                                     ra_games_found += 1
                                     
+                                    retroarch_game_file_name = f'{game["label"]}.png'.replace('&', '_')
+                                    
                                     #print('Game Title:')
                                     #print(f'  {game["label"]}')
                                     print('Game Path (Found In Both LaunchBox and RetroArch):')
@@ -1181,7 +1201,7 @@ def createRetroArchImagePaths(all_the_data):
                                             debug_thumbnails_root if debug else retroarch_thumbnails_root,
                                             retroarch_platform_name,
                                             'Named_Boxarts',
-                                            f'{game["label"]}.png'
+                                            retroarch_game_file_name
                                         ))
                                         print(f'  {retroarch_front_boxart_path}')
                                         all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS][game_path].update({
@@ -1198,7 +1218,7 @@ def createRetroArchImagePaths(all_the_data):
                                             debug_thumbnails_root if debug else retroarch_thumbnails_root,
                                             retroarch_platform_name,
                                             'Named_Titles',
-                                            f'{game["label"]}.png'
+                                            retroarch_game_file_name
                                         ))
                                         print(f'  {retroarch_title_screen_path}')
                                         all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS][game_path].update({
@@ -1215,7 +1235,7 @@ def createRetroArchImagePaths(all_the_data):
                                             debug_thumbnails_root if debug else retroarch_thumbnails_root,
                                             retroarch_platform_name,
                                             'Named_Snaps',
-                                            f'{game["label"]}.png'
+                                            retroarch_game_file_name
                                         ))
                                         print(f'  {retroarch_gameplay_screen_path}')
                                         all_the_data[APP_DATA][RETROARCH][IMAGE_PATHS][game_path].update({
